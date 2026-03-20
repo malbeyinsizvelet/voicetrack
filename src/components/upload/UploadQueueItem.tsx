@@ -1,7 +1,5 @@
 // ============================================================
-// UPLOAD QUEUE ITEM — Phase 7
-// Yükleme kuyruğundaki tek bir dosyanın satır bileşeni.
-// Durum, ilerleme, dosya bilgisi ve aksiyonlar gösterir.
+// UPLOAD QUEUE ITEM – Phase 7
 // ============================================================
 
 import { Music, CheckCircle2, XCircle, AlertTriangle, Copy, Loader2, X, SkipForward } from 'lucide-react';
@@ -9,7 +7,6 @@ import { cn } from '../../utils/cn';
 import { formatFileSize } from '../../services/audioUploadService';
 import type { UploadedFileEntry, UploadFileStatus } from '../../types';
 
-// ─── Durum konfigürasyonu ────────────────────────────────────
 const STATUS_CONFIG: Record<
   UploadFileStatus,
   { label: string; color: string; icon: React.ReactNode; progressColor: string }
@@ -58,15 +55,18 @@ const STATUS_CONFIG: Record<
   },
 };
 
-// ─── Süre formatı ────────────────────────────────────────────
 function formatDuration(seconds?: number): string {
-  if (!seconds || seconds <= 0) return '—';
+  if (!seconds || seconds <= 0) return '–';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// ─── Bileşen ─────────────────────────────────────────────────
+export interface DuplicateWarning {
+  uid: string;
+  fileName: string;
+}
+
 interface UploadQueueItemProps {
   entry: UploadedFileEntry;
   index: number;
@@ -102,7 +102,6 @@ export function UploadQueueItem({
         (isQueued) && 'bg-slate-800/30 border border-slate-700/20',
       )}
     >
-      {/* ── Sıra No / İkon ───────────────────────────────── */}
       <div className="w-6 text-center shrink-0">
         {isActive ? (
           <Loader2 className="w-4 h-4 text-indigo-400 animate-spin mx-auto" />
@@ -113,7 +112,6 @@ export function UploadQueueItem({
         )}
       </div>
 
-      {/* ── Dosya Bilgisi ────────────────────────────────── */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span
@@ -128,124 +126,63 @@ export function UploadQueueItem({
         </div>
 
         <div className="flex items-center gap-3 mt-0.5">
-          {/* Boyut */}
           <span className="text-[10px] text-slate-500 font-mono">
             {formatFileSize(entry.fileSize)}
           </span>
 
-          {/* Tahmini süre */}
           {entry.estimatedDuration && (
             <span className="text-[10px] text-slate-600 font-mono">
               ~{formatDuration(entry.estimatedDuration)}
             </span>
           )}
 
-          {/* Durum badge */}
           <span className={cn('flex items-center gap-1 text-[10px] font-medium', conf.color)}>
             {conf.icon}
             {conf.label}
           </span>
 
-          {/* Hata mesajı */}
           {entry.errorMessage && (
             <span className="text-[10px] text-red-400 truncate max-w-[200px]" title={entry.errorMessage}>
-              — {entry.errorMessage}
+              – {entry.errorMessage}
             </span>
           )}
         </div>
 
-        {/* ── Progress Bar ──────────────────────────────── */}
-        {(isActive || isDone) && (
-          <div className="mt-1.5 h-1 bg-slate-700 rounded-full overflow-hidden">
+        {isActive && (
+          <div className="mt-1.5 h-1 rounded-full bg-slate-700 overflow-hidden">
             <div
               className={cn('h-full rounded-full transition-all duration-300', conf.progressColor)}
-              style={{ width: `${entry.progress}%` }}
+              style={{ width: `${entry.progress ?? 0}%` }}
             />
           </div>
         )}
       </div>
 
-      {/* ── Aksiyonlar ───────────────────────────────────── */}
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        {/* Duplicate → skip */}
+      <div className="flex items-center gap-1 shrink-0">
         {isDuplicate && !isUploading && onSkip && (
           <button
             onClick={() => onSkip(entry.uid)}
+            className="p-1 rounded text-slate-500 hover:text-amber-400 transition-colors"
             title="Atla"
-            className="p-1 rounded text-amber-500 hover:bg-amber-900/30 transition-colors"
+            type="button"
           >
-            <SkipForward className="w-3.5 h-3.5" />
+            <SkipForward size={12} />
           </button>
         )}
-
-        {/* Queued / Error → remove */}
-        {(isQueued || isError || isDuplicate) && !isUploading && onRemove && (
+        {(isQueued || isDuplicate || isError) && !isUploading && onRemove && (
           <button
             onClick={() => onRemove(entry.uid)}
-            title="Kaldır"
-            className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+            className="p-1 rounded text-slate-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+            title="Kuyruktan çıkar"
+            type="button"
           >
-            <X className="w-3.5 h-3.5" />
+            <X size={12} />
           </button>
         )}
-
-        {/* Done / Skipped → yalnızca durum göster */}
-        {(isDone || isSkipped) && (
-          <span className={cn('w-5 h-5 flex items-center justify-center', conf.color)}>
-            {conf.icon}
-          </span>
+        {isSkipped && (
+          <AlertTriangle size={12} className="text-slate-600" />
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── Özet istatistik satırı ──────────────────────────────────
-interface UploadSummaryProps {
-  entries: UploadedFileEntry[];
-}
-
-export function UploadSummary({ entries }: UploadSummaryProps) {
-  const total = entries.length;
-  const done = entries.filter((e) => e.status === 'done').length;
-  const errors = entries.filter((e) => e.status === 'error').length;
-  const duplicates = entries.filter((e) => e.status === 'duplicate').length;
-  const skipped = entries.filter((e) => e.status === 'skipped').length;
-  const queued = entries.filter((e) => e.status === 'queued').length;
-  const uploading = entries.filter((e) => e.status === 'uploading' || e.status === 'parsing').length;
-
-  return (
-    <div className="flex items-center gap-4 px-3 py-2 bg-slate-800/60 rounded-xl border border-slate-700/40">
-      <Pill color="text-slate-400" label="Toplam" value={total} />
-      {queued > 0 && <Pill color="text-slate-400" label="Sırada" value={queued} />}
-      {uploading > 0 && <Pill color="text-indigo-400" label="Yükleniyor" value={uploading} />}
-      {done > 0 && <Pill color="text-emerald-400" label="Tamamlandı" value={done} />}
-      {errors > 0 && <Pill color="text-red-400" label="Hata" value={errors} />}
-      {duplicates > 0 && <Pill color="text-amber-400" label="Kopya" value={duplicates} />}
-      {skipped > 0 && <Pill color="text-slate-500" label="Atlandı" value={skipped} />}
-    </div>
-  );
-}
-
-function Pill({ color, label, value }: { color: string; label: string; value: number }) {
-  return (
-    <div className={cn('flex items-center gap-1 text-xs', color)}>
-      <span className="font-bold text-sm">{value}</span>
-      <span className="text-slate-500">{label}</span>
-    </div>
-  );
-}
-
-// ─── Uyarı satırı ────────────────────────────────────────────
-export function DuplicateWarning({ count }: { count: number }) {
-  if (count === 0) return null;
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/20 border border-amber-800/30 rounded-xl">
-      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-      <p className="text-amber-300 text-xs">
-        <span className="font-semibold">{count} kopya dosya</span> var. Bu dosyalar atlanacak veya üzerine yazılacak.
-        Devam etmek için üst üste yükle ya da kaldır.
-      </p>
     </div>
   );
 }

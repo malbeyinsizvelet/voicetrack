@@ -1,5 +1,5 @@
 // ============================================================
-// OVERALL PROGRESS BANNER — Phase 12
+// OVERALL PROGRESS BANNER – Phase 12
 // Admin/PM dashboard'da tüm sistem genel ilerleme özeti.
 // ============================================================
 

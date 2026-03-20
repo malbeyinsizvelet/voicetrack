@@ -1,5 +1,5 @@
 // ============================================================
-// RECENT ACTIVITY TABLE — Phase 12
+// RECENT ACTIVITY TABLE – Phase 12
 // Admin/PM dashboard'da son görev aktivitelerini gösteren tablo.
 // ============================================================
 
@@ -88,7 +88,7 @@ export function RecentActivityTable({
                 {/* Proje */}
                 <td className="px-4 py-3 hidden md:table-cell">
                   <span className="text-slate-500 truncate max-w-[160px] block">
-                    {project?.title ?? '—'}
+                    {project?.title ?? '–'}
                   </span>
                 </td>
 
@@ -124,7 +124,7 @@ export function RecentActivityTable({
                       /{totalLines}
                     </span>
                   ) : (
-                    <span className="text-slate-700 text-xs">—</span>
+                    <span className="text-slate-700 text-xs">–</span>
                   )}
                 </td>
 

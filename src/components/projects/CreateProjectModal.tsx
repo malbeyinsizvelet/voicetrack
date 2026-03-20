@@ -1,40 +1,17 @@
-// ============================================================
-// CREATE PROJECT MODAL
-// Developer ve PM'in yeni proje oluşturduğu form.
-// Gerçek sistemde form validasyonu için react-hook-form + zod kullanılabilir.
-// ============================================================
-
-import { useState, useCallback } from 'react';
-import { FolderPlus } from 'lucide-react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
-import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
-import { Textarea } from '../ui/Textarea';
-import { ColorPicker, PRESET_COLORS } from '../ui/ColorPicker';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
-import type { ProjectFormData, ProjectStatus } from '../../types';
+import type { ProjectStatus } from '../../types';
 
-interface Props {
+interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (projectId: string) => void;
 }
 
-const STATUS_OPTIONS = [
-  { value: 'active',    label: '🟢 Aktif' },
-  { value: 'on_hold',  label: '🟡 Beklemede' },
-  { value: 'completed',label: '✅ Tamamlandı' },
-  { value: 'archived', label: '🗃️ Arşivlendi' },
-];
-
-interface FormErrors {
-  title?: string;
-  clientName?: string;
-}
-
-interface LocalForm {
+interface FormFields {
   title: string;
   clientName: string;
   description: string;
@@ -43,182 +20,185 @@ interface LocalForm {
   coverColor: string;
 }
 
-const EMPTY_FORM: LocalForm = {
+const INITIAL: FormFields = {
   title: '',
   clientName: '',
   description: '',
   status: 'active',
   dueDate: '',
-  coverColor: PRESET_COLORS[0].value,
+  coverColor: '#6366f1',
 };
 
-export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
-  const { addProject } = useProjects();
-  const { currentUser: user } = useAuth();
+const COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#3b82f6', '#06b6d4', '#84cc16', '#a78bfa',
+];
 
-  const [form, setForm] = useState<LocalForm>({ ...EMPTY_FORM });
-  const [errors, setErrors] = useState<FormErrors>({});
+const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
+  { value: 'active',    label: 'Aktif' },
+  { value: 'on_hold',   label: 'Beklemede' },
+  { value: 'completed', label: 'Tamamlandı' },
+  { value: 'archived',  label: 'Arşivlendi' },
+];
+
+export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
+  const { addProject: createProject } = useProjects();
+  const [fields, setFields] = useState<FormFields>(INITIAL);
+  const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const setField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    if (errors[key as keyof FormErrors]) {
-      setErrors((prev) => ({ ...prev, [key]: undefined }));
-    }
-  };
+  function setField<K extends keyof FormFields>(key: K, value: FormFields[K]) {
+    setFields((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  }
 
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {};
-    if (!form.title.trim()) newErrors.title = 'Proje adı zorunludur.';
-    else if (form.title.trim().length < 3) newErrors.title = 'En az 3 karakter olmalı.';
-    if (!form.clientName.trim()) newErrors.clientName = 'Müşteri/yapım adı zorunludur.';
+  function validate(): boolean {
+    const newErrors: Partial<Record<keyof FormFields, string>> = {};
+    if (!fields.title.trim()) newErrors.title = 'Proje adı zorunludur.';
+    if (!fields.clientName.trim()) newErrors.clientName = 'Müşteri adı zorunludur.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }
 
-  const handleSubmit = useCallback(async () => {
+  async function handleSubmit() {
     if (!validate()) return;
-    if (!user) return;
-
     setIsSubmitting(true);
     try {
-      const payload: ProjectFormData = {
-        title: form.title.trim(),
-        clientName: form.clientName.trim(),
-        description: form.description?.trim() || undefined,
-        dueDate: form.dueDate || undefined,
-        status: form.status as ProjectStatus,
-        coverColor: form.coverColor,
-        managerId: user.id,
-        managerName: user.name,
-      };
-      const created = await addProject(payload);
-      handleClose();
-      onSuccess?.(created.id);
-    } catch (err) {
-      console.error('Proje oluşturma hatası:', err);
+      await createProject({
+        title: fields.title.trim(),
+        clientName: fields.clientName.trim(),
+        description: fields.description.trim() || undefined,
+        status: fields.status,
+        dueDate: fields.dueDate || undefined,
+        coverColor: fields.coverColor,
+      });
+      setFields(INITIAL);
+      onClose();
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, user, addProject, onSuccess]);
+  }
 
-  const handleClose = () => {
-    setForm({ ...EMPTY_FORM });
+  function handleClose() {
+    if (isSubmitting) return;
+    setFields(INITIAL);
     setErrors({});
-    setIsSubmitting(false);
     onClose();
-  };
+  }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Yeni Proje Oluştur"
-      subtitle="Proje bilgilerini girerek seslendirme sürecini başlat"
-      size="lg"
-      footer={
-        <>
-          <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
-            İptal
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            isLoading={isSubmitting}
-            leftIcon={<FolderPlus className="w-4 h-4" />}
-          >
-            Proje Oluştur
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-5">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Yeni Proje Oluştur" size="md">
+      <div className="space-y-5 p-1">
         {/* ── Temel Bilgiler ────────────────────────────── */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+        <div className="space-y-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Temel Bilgiler
           </h3>
-          <div className="space-y-4">
-            <Input
-              label="Proje Adı / Yapım Adı"
-              placeholder="örn. Galaksi Savaşçıları – Türkçe Dublaj"
-              required
-              value={form.title}
-              onChange={(e) => setField('title', e.target.value)}
-              error={errors.title}
-              maxLength={120}
-            />
-            <Input
-              label="Müşteri / Prodüksiyon Şirketi"
-              placeholder="örn. Nebula Film A.Ş."
-              required
-              value={form.clientName}
-              onChange={(e) => setField('clientName', e.target.value)}
-              error={errors.clientName}
-              maxLength={100}
-            />
-            <Textarea
-              label="Kısa Açıklama"
-              placeholder="Proje hakkında kısa bir açıklama... (isteğe bağlı)"
-              value={form.description}
-              onChange={(e) => setField('description', e.target.value)}
+          <Input
+            label="Proje Adı"
+            placeholder="Örn: Anime Dizisi S2"
+            value={fields.title}
+            onChange={(e) => setField('title', e.target.value)}
+            error={errors.title}
+            maxLength={120}
+          />
+          <Input
+            label="Müşteri Adı"
+            placeholder="Örn: Acme Productions"
+            value={fields.clientName}
+            onChange={(e) => setField('clientName', e.target.value)}
+            error={errors.clientName}
+            maxLength={100}
+          />
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Açıklama (opsiyonel)
+            </label>
+            <textarea
               rows={3}
+              placeholder="Proje hakkında kısa bir açıklama…"
+              value={fields.description}
+              onChange={(e) => setField('description', e.target.value)}
               maxLength={500}
+              className="w-full rounded-xl px-3 py-2.5 text-sm resize-none outline-none transition-colors"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
             />
           </div>
-        </section>
+        </div>
 
         {/* ── Durum & Tarih ─────────────────────────────── */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-            Durum & Zamanlama
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Proje Durumu"
-              value={form.status}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Durum</label>
+            <select
+              value={fields.status}
               onChange={(e) => setField('status', e.target.value as ProjectStatus)}
-              options={STATUS_OPTIONS}
-            />
-            <Input
-              label="Teslim Tarihi"
+              className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Bitiş Tarihi (opsiyonel)
+            </label>
+            <input
               type="date"
-              value={form.dueDate}
+              value={fields.dueDate}
               onChange={(e) => setField('dueDate', e.target.value)}
-              hint="İsteğe bağlı"
-              min={new Date().toISOString().split('T')[0]}
+              className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
             />
           </div>
-        </section>
+        </div>
 
         {/* ── Renk ─────────────────────────────────────── */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-            Proje Rengi
-          </h3>
-          <ColorPicker
-            value={form.coverColor}
-            onChange={(c) => setField('coverColor', c)}
-          />
-          <p className="text-xs text-slate-600 mt-2">
-            Proje kartı ve detay sayfasında tanımlayıcı renk olarak kullanılır.
-          </p>
-        </section>
-
-        {/* ── Yönetici (otomatik) ───────────────────────── */}
-        <section className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-              style={{ backgroundColor: '#6366f1' }}
-            >
-              {user?.name.charAt(0) ?? '?'}
-            </div>
-            <div>
-              <p className="text-slate-300 text-sm font-medium">{user?.name}</p>
-              <p className="text-slate-500 text-xs">Proje Yöneticisi (sen)</p>
-            </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-2">Proje Rengi</label>
+          <div className="flex flex-wrap gap-2">
+            {COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => setField('coverColor', color)}
+                className="w-7 h-7 rounded-full transition-transform hover:scale-110 relative"
+                style={{ backgroundColor: color }}
+              >
+                {fields.coverColor === color && (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="w-2.5 h-2.5 rounded-full bg-white/80" />
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
-        </section>
+        </div>
+
+        {/* ── Footer ────────────────────────────────────── */}
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-700/50">
+          <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>
+            İptal
+          </Button>
+          <Button onClick={handleSubmit} isLoading={isSubmitting}>
+            Proje Oluştur
+          </Button>
+        </div>
       </div>
     </Modal>
   );

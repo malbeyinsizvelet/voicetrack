@@ -1,7 +1,5 @@
 // ============================================================
 // SEARCH HIGHLIGHT — Phase 11
-// Arama sorgusuyla eşleşen metni highlight eder.
-// Pure bileşen — herhangi bir listede kullanılabilir.
 // ============================================================
 
 interface Props {
@@ -29,9 +27,7 @@ export function SearchHighlight({
     <span className={className}>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className={highlightClassName}>
-            {part}
-          </mark>
+          <mark key={i} className={highlightClassName}>{part}</mark>
         ) : (
           <span key={i}>{part}</span>
         )

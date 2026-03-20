@@ -95,7 +95,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            onClick={close}   // mobilde navlink tıklayınca kapat
+            onClick={close}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all interactive',
@@ -184,33 +184,30 @@ export function Sidebar() {
 
       {/* ── User footer ───────────────────────────── */}
       <div className="px-3 py-3 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl transition-colors vt-hover group">
+        <div className="flex items-center gap-3">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
             style={{ background: 'var(--text-primary)', color: 'var(--accent-text)' }}
           >
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate leading-snug"
-               style={{ color: 'var(--text-primary)' }}>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
               {currentUser.name}
             </p>
-            <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
               {currentUser.email}
             </p>
           </div>
           <button
             onClick={handleLogout}
             disabled={loggingOut}
-            title="Çıkış Yap"
-            className="w-7 h-7 flex items-center justify-center rounded-lg shrink-0 transition-colors disabled:opacity-40"
+            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors vt-hover shrink-0"
             style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            title="Çıkış yap"
           >
             {loggingOut
-              ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+              ? <span className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
               : <LogOut className="w-3.5 h-3.5" />
             }
           </button>

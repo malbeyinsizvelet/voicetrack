@@ -1,7 +1,5 @@
 // ============================================================
 // PROJECT PROGRESS HEADER — Phase 9
-// Proje detay sayfasının üst kısmında gösterilen
-// proje geneli ilerleme özeti şeridi.
 // ============================================================
 
 import { CircularProgress } from '../ui/CircularProgress';
@@ -35,16 +33,14 @@ export function ProjectProgressHeader({ progress, className = '' }: ProjectProgr
 
   const inProgressLines = recordedLines;
   const segments = [
-    { value: completedLines,    colorClass: 'bg-emerald-500', label: 'Onaylı' },
-    { value: inProgressLines,   colorClass: 'bg-indigo-500',  label: 'Yüklendi' },
-    { value: rejectedLines,     colorClass: 'bg-red-500',     label: 'Red' },
-    { value: pendingLines,      colorClass: 'bg-slate-600',   label: 'Bekliyor' },
+    { value: completedLines,  colorClass: 'bg-emerald-500', label: 'Onaylı' },
+    { value: inProgressLines, colorClass: 'bg-indigo-500',  label: 'Yüklendi' },
+    { value: rejectedLines,   colorClass: 'bg-red-500',     label: 'Red' },
+    { value: pendingLines,    colorClass: 'bg-slate-600',   label: 'Bekliyor' },
   ];
 
   return (
-    <div
-      className={`bg-slate-800/40 border border-slate-700/40 rounded-xl p-5 ${className}`}
-    >
+    <div className={`bg-slate-800/40 border border-slate-700/40 rounded-xl p-5 ${className}`}>
       <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
 
         {/* Dairesel progress — büyük */}
@@ -64,17 +60,15 @@ export function ProjectProgressHeader({ progress, className = '' }: ProjectProgr
             <p className="text-slate-500 text-xs">{formatLineCount(completedLines, totalLines)} satır onaylandı</p>
           </div>
 
-          {/* Stacked bar */}
           <StackedProgress
             total={totalLines}
             segments={segments}
             height={10}
           />
 
-          {/* Lejant */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
             <LegendItem color="bg-emerald-500" label="Onaylı" value={completedLines} />
-            <LegendItem color="bg-indigo-500"  label="Yüklendi (QC beklyor)" value={inProgressLines} />
+            <LegendItem color="bg-indigo-500"  label="Yüklendi (QC bekliyor)" value={inProgressLines} />
             <LegendItem color="bg-red-500"     label="Red / Retake" value={rejectedLines} />
             <LegendItem color="bg-slate-600"   label="Bekliyor" value={pendingLines} />
           </div>

@@ -1,7 +1,6 @@
 // ============================================================
-// FILE DROP ZONE — Phase 7
+// FILE DROP ZONE – Phase 7
 // Sürükle-bırak + dosya seçici, çoklu dosya ve klasör desteği.
-// Gerçek sistemde aynı bileşen S3 presigned upload ile çalışır.
 // ============================================================
 
 import { useRef, useState, useCallback } from 'react';
@@ -26,13 +25,11 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Drag Events ──────────────────────────────────────────
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (disabled) return;
 
-    // Ses dosyası mı kontrol et
     const hasAudio = Array.from(e.dataTransfer.items).some((item) => {
       const ext = item.getAsFile()?.name ? `.${item.getAsFile()!.name.split('.').pop()!.toLowerCase()}` : '';
       return item.kind === 'file' && (item.type.startsWith('audio/') || ACCEPTED_EXTENSIONS.includes(ext));
@@ -50,7 +47,6 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // relatedTarget kontrolü: child element'lere geçişte kapanmasın
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
     setIsDragError(false);
@@ -69,11 +65,9 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
     }
   }, [disabled, onFilesSelected]);
 
-  // ── Input Handlers ───────────────────────────────────────
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = extractAudioFiles(Array.from(e.target.files ?? []));
     if (files.length > 0) onFilesSelected(files);
-    // Input'u sıfırla — aynı dosya tekrar seçilebilsin
     e.target.value = '';
   }, [onFilesSelected]);
 
@@ -85,7 +79,6 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      {/* ── Drop Area ────────────────────────────────────── */}
       <div
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -103,7 +96,6 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
             : 'border-slate-600/50 bg-slate-800/20 hover:border-slate-500/60 hover:bg-slate-800/30'
         )}
       >
-        {/* Icon */}
         <div
           className={cn(
             'w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200',
@@ -120,7 +112,6 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
           }
         </div>
 
-        {/* Text */}
         <div className="text-center">
           {isDragError ? (
             <>
@@ -137,75 +128,53 @@ export function FileDropZone({ onFilesSelected, disabled = false, className }: F
           ) : (
             <>
               <p className="text-slate-300 font-semibold text-sm">
-                Dosyaları buraya sürükle & bırak
+                Dosyaları buraya sürükle &amp; bırak
               </p>
-              <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">
-                {ACCEPTED_EXTENSIONS.join(' · ')} · Maks. {MAX_FILES_PER_UPLOAD} dosya
+              <p className="text-slate-500 text-xs mt-1">
+                {ACCEPTED_EXTENSIONS.join(', ')} · Maks {MAX_FILES_PER_UPLOAD} dosya
               </p>
             </>
           )}
         </div>
 
-        {/* Overlay for drag state */}
-        {isDragOver && (
-          <div className="absolute inset-0 rounded-2xl border-2 border-indigo-400/60 pointer-events-none animate-pulse" />
-        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-slate-700/60 hover:bg-slate-700 text-slate-300"
+          >
+            <Music className="w-3.5 h-3.5" />
+            Dosya Seç
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => folderInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-slate-700/60 hover:bg-slate-700 text-slate-300"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            Klasör Seç
+          </button>
+        </div>
       </div>
 
-      {/* ── Action Buttons ───────────────────────────────── */}
-      <div className="flex gap-3">
-        {/* Dosya seç */}
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl',
-            'border border-slate-600/60 bg-slate-800/50 text-slate-300 text-sm font-medium',
-            'hover:bg-slate-700/60 hover:border-slate-500/70 hover:text-slate-200',
-            'transition-all duration-150 active:scale-[0.98]',
-            disabled && 'opacity-50 cursor-not-allowed'
-          )}
-        >
-          <Music className="w-4 h-4 text-indigo-400" />
-          Dosya Seç
-        </button>
-
-        {/* Klasör seç */}
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => folderInputRef.current?.click()}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl',
-            'border border-slate-600/60 bg-slate-800/50 text-slate-300 text-sm font-medium',
-            'hover:bg-slate-700/60 hover:border-slate-500/70 hover:text-slate-200',
-            'transition-all duration-150 active:scale-[0.98]',
-            disabled && 'opacity-50 cursor-not-allowed'
-          )}
-        >
-          <FolderOpen className="w-4 h-4 text-amber-400" />
-          Klasör Seç
-        </button>
-      </div>
-
-      {/* ── Hidden Inputs ────────────────────────────────── */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
         accept={ACCEPTED_EXTENSIONS.join(',')}
-        className="hidden"
         onChange={handleFileInput}
+        className="hidden"
       />
       <input
         ref={folderInputRef}
         type="file"
-        // @ts-expect-error — webkitdirectory not in standard types
-        webkitdirectory="true"
         multiple
-        className="hidden"
+        // @ts-ignore
+        webkitdirectory=""
         onChange={handleFolderInput}
+        className="hidden"
       />
     </div>
   );

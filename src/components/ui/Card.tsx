@@ -9,18 +9,14 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export function Card({ children, className = '', noPadding = false, hoverable = false, style, ...rest }: CardProps) {
   return (
     <div
-      {...rest}
-      style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
-        borderRadius: '0.75rem',
-        ...style,
-      }}
       className={cn(
+        'rounded-xl transition-all',
         !noPadding && 'p-4',
-        hoverable && 'cursor-pointer transition-all hover:opacity-90',
+        hoverable && 'cursor-pointer',
         className
       )}
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', ...style }}
+      {...rest}
     >
       {children}
     </div>

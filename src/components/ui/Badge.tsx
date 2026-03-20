@@ -18,11 +18,11 @@ const SIZES = {
 export function Badge({ label, className = '', dot = false, icon, size = 'sm', style }: BadgeProps) {
   return (
     <span
-      className={cn('inline-flex items-center rounded-full font-medium leading-none', SIZES[size], className)}
+      className={cn('inline-flex items-center rounded-full font-medium', SIZES[size], className)}
       style={style}
     >
       {icon && <span className="shrink-0">{icon}</span>}
-      {dot && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" />}
+      {dot && <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />}
       {label}
     </span>
   );

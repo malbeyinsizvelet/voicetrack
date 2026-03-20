@@ -1,17 +1,7 @@
 // ============================================================
 // ROLE GUARD
 // Component seviyesinde rol/izin bazlı görünürlük kontrolü.
-//
-// Kullanım örnekleri:
-//   <RoleGuard roles={['admin', 'project_manager']}>
-//     <DeleteButton />
-//   </RoleGuard>
-//
-//   <RoleGuard permission="projects:write" fallback={<ReadOnlyView />}>
-//     <EditForm />
-//   </RoleGuard>
 // ============================================================
-
 import type { ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_PERMISSIONS } from '../../types';

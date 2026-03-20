@@ -1,76 +1,69 @@
-import { useEffect }        from 'react';
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Sidebar }           from './Sidebar';
-import { ToastProvider }     from '../ui/Toast';
-import { ErrorBoundary }     from '../ui/ErrorBoundary';
+import { Sidebar } from './Sidebar';
+import { ToastProvider } from '../ui/Toast';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
 
 // ─── İç layout (SidebarContext'e erişebilir) ─────────────────
-
 function LayoutInner() {
   const { isOpen, close } = useSidebar();
-  const location          = useLocation();
+  const location = useLocation();
 
   // Rota değişince mobilde kapat
-  useEffect(() => { close(); }, [location.pathname, close]);
+  useEffect(() => {
+    close();
+  }, [location.pathname, close]);
 
   // Escape ile kapat
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close(); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [close]);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <ToastProvider>
+      <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+        {/* ── Mobil overlay ─────────────────────────────── */}
+        {isOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+            onClick={close}
+          />
+        )}
 
-      {/* ── Mobil overlay ─────────────────────────────── */}
-      {isOpen && (
+        {/* ── Sidebar ───────────────────────────────────── */}
+        {/* Desktop (lg+): inline, shrink-0
+            Mobile (<lg): fixed, slide-in */}
         <div
-          className="fixed inset-0 z-30 lg:hidden"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={close}
-          aria-hidden="true"
-        />
-      )}
+          className={`
+            fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
+            transition-transform duration-200
+            ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          `}
+        >
+          <Sidebar />
+        </div>
 
-      {/* ── Sidebar ───────────────────────────────────── */}
-      {/*
-        Desktop (lg+): inline, shrink-0
-        Mobile (<lg):  fixed, z-40, slide-in/out
-      */}
-      <div
-        className={[
-          'hidden lg:flex lg:shrink-0',
-          'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:flex',
-          'max-lg:transition-transform max-lg:duration-200 max-lg:ease-in-out',
-          isOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',
-        ].join(' ')}
-      >
-        <Sidebar />
+        {/* ── Ana içerik ────────────────────────────────── */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
       </div>
-
-      {/* ── Ana içerik ────────────────────────────────── */}
-      <main
-        className="flex-1 overflow-y-auto min-w-0 flex flex-col"
-        style={{ background: 'var(--bg-base)' }}
-      >
-        <ErrorBoundary>
-          <Outlet />
-        </ErrorBoundary>
-      </main>
-    </div>
+    </ToastProvider>
   );
 }
 
 // ─── Export ──────────────────────────────────────────────────
-
 export function AppLayout() {
   return (
-    <ToastProvider>
-      <SidebarProvider>
-        <LayoutInner />
-      </SidebarProvider>
-    </ToastProvider>
+    <SidebarProvider>
+      <LayoutInner />
+    </SidebarProvider>
   );
 }

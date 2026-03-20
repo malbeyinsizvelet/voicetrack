@@ -1,7 +1,6 @@
 // ============================================================
 // EMPTY STATE — Boş durum ekranı
 // ============================================================
-
 import { cn } from '../../utils/cn';
 
 interface EmptyStateProps {
@@ -21,26 +20,23 @@ export function EmptyState({
   size = 'md',
   className = '',
 }: EmptyStateProps) {
-  const iconSize = size === 'sm' ? 'w-10 h-10' : size === 'lg' ? 'w-16 h-16' : 'w-12 h-12';
-  const titleSize = size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-base' : 'text-sm';
-  const py = size === 'sm' ? 'py-8' : size === 'lg' ? 'py-20' : 'py-14';
+  const iconSize  = size === 'sm' ? 'w-10 h-10' : size === 'lg' ? 'w-16 h-16' : 'w-12 h-12';
+  const titleSize = size === 'sm' ? 'text-xs'  : size === 'lg' ? 'text-base'  : 'text-sm';
+  const py        = size === 'sm' ? 'py-8'     : size === 'lg' ? 'py-20'      : 'py-14';
 
   return (
-    <div className={cn('flex flex-col items-center justify-center px-6 text-center animate-fade-in', py, className)}>
+    <div className={cn('flex flex-col items-center justify-center text-center px-6', py, className)}>
       {icon && (
-        <div
-          className={cn(
-            'rounded-2xl bg-slate-800/80 border border-slate-700/60',
-            'flex items-center justify-center text-slate-500 mb-4 shrink-0',
-            iconSize
-          )}
-        >
-          {icon}
+        <div className={cn('rounded-2xl flex items-center justify-center mb-4',
+          iconSize,
+          'bg-[var(--bg-elevated)] border border-[var(--border)]'
+        )}>
+          <span style={{ color: 'var(--text-muted)' }}>{icon}</span>
         </div>
       )}
-      <p className={cn('text-slate-300 font-medium leading-snug', titleSize)}>{title}</p>
+      <p className={cn('font-semibold', titleSize)} style={{ color: 'var(--text-primary)' }}>{title}</p>
       {description && (
-        <p className="text-slate-500 text-xs mt-1.5 max-w-xs leading-relaxed">{description}</p>
+        <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{description}</p>
       )}
       {action && <div className="mt-5">{action}</div>}
     </div>
@@ -57,7 +53,7 @@ export function EmptyRow({
 }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="py-10 text-center text-slate-500 text-sm">
+      <td colSpan={colSpan} className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
         {message}
       </td>
     </tr>

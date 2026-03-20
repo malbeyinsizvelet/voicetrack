@@ -18,7 +18,7 @@ export function Textarea({ label, error, hint, className = '', ...rest }: Textar
       <textarea
         {...rest}
         className={cn(
-          'w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors resize-none',
+          'w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors resize-y',
           rest.disabled && 'opacity-50 cursor-not-allowed',
           className
         )}
@@ -26,6 +26,7 @@ export function Textarea({ label, error, hint, className = '', ...rest }: Textar
           background: 'var(--bg-input)',
           border: `1px solid ${error ? 'var(--border-strong)' : 'var(--border)'}`,
           color: 'var(--text-primary)',
+          minHeight: '80px',
           ...(rest.style ?? {}),
         }}
         onFocus={(e) => {

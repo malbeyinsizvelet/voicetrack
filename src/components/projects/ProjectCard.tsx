@@ -1,54 +1,35 @@
-// ============================================================
-// PROJECT CARD — Phase 12
-// Proje listesinde ve grid görünümünde her projeyi gösteren kart.
-// Phase 12: replik bazlı progress, cast sayısı, atanmış bilgisi.
-// ============================================================
-
-import { Users, FileAudio, Calendar, MoreVertical, Trash2, Edit3, Mic2 } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
-import { Card, CardHeader, CardTitle } from '../ui/Card';
+import { useState } from 'react';
+import { MoreVertical, Edit2, Trash2, Users, FileAudio, Mic2, Calendar } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { CircularProgress } from '../ui/CircularProgress';
 import { StackedProgress } from '../ui/LinearProgress';
+import { computeProjectProgress } from '../../services/progressService';
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_COLORS,
-  TASK_STATUS_LABELS,
-  TASK_STATUS_COLORS,
   formatDate,
   formatRelativeDate,
 } from '../../utils/formatters';
-import { computeProjectProgress } from '../../services/progressService';
 import type { Project } from '../../types';
-import { cn } from '../../utils/cn';
 
 interface ProjectCardProps {
   project: Project;
-  onClick: () => void;
-  onDelete?: () => void;
-  onEdit?: () => void;
+  onClick?: () => void;
   canManage?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
-export function ProjectCard({
-  project,
-  onClick,
-  onDelete,
-  onEdit,
-  canManage,
-}: ProjectCardProps) {
+export function ProjectCard({ project, onClick, canManage, onEdit, onDelete }: ProjectCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // ── Progress hesapla ──────────────────────────────────────
   const prog = computeProjectProgress(project);
-  const hasLines = prog.totalLines > 0;
 
+  const hasLines = prog.totalLines > 0;
   const assignedCasts = (prog.castProgresses ?? []).filter(
-    (c) => c.assignedArtistName && c.assignedArtistName !== 'Atanmamış'
+    (c: { assignedArtistName?: string }) =>
+      c.assignedArtistName && c.assignedArtistName !== 'Atanmamış'
   ).length;
 
-  // Stacked bar segments
   const segments = [
     { value: prog.completedLines, colorClass: 'bg-emerald-500', label: 'Onaylı' },
     { value: prog.recordedLines,  colorClass: 'bg-indigo-500',  label: 'Yüklendi' },
@@ -56,190 +37,172 @@ export function ProjectCard({
     { value: prog.pendingLines,   colorClass: 'bg-slate-600',   label: 'Bekliyor' },
   ];
 
-  // Menü dışı tıklamada kapat
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    if (menuOpen) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
-
   return (
-    <Card className="flex flex-col gap-0 group relative overflow-hidden">
-      {/* Sol renk çizgisi */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
-        style={{ backgroundColor: project.coverColor ?? '#6366f1' }}
-      />
-
-      <div className="pl-3 flex flex-col gap-3.5">
-        {/* ── Header ──────────────────────────────────────── */}
-        <CardHeader className="mb-0">
+    <div
+      className="rounded-xl border overflow-hidden transition-all hover:border-slate-600/60 cursor-pointer"
+      style={{
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+      }}
+    >
+      {/* ── Header ──────────────────────────────────────── */}
+      <div className="flex items-start justify-between p-4 pb-0">
+        <div className="flex items-start gap-2.5 min-w-0" onClick={onClick}>
           <div
-            className="flex items-start gap-2.5 flex-1 min-w-0 cursor-pointer"
-            onClick={onClick}
-          >
-            <div className="min-w-0">
-              <CardTitle className="leading-snug truncate group-hover:text-indigo-300 transition-colors">
-                {project.title}
-              </CardTitle>
-              <p className="text-slate-500 text-xs mt-0.5 truncate">{project.clientName}</p>
+            className="w-1 h-full rounded-full shrink-0 mt-1 min-h-[40px]"
+            style={{ backgroundColor: project.coverColor ?? '#6366f1' }}
+          />
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+              {project.title}
+            </p>
+            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {project.clientName}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0 pl-2">
+          <Badge
+            label={PROJECT_STATUS_LABELS[project.status]}
+            className={PROJECT_STATUS_COLORS[project.status]}
+          />
+          {/* Kebab menu */}
+          {canManage && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-700/50"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-36 rounded-xl shadow-xl z-20 py-1"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                >
+                  {onEdit && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onEdit(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-700/50 transition-colors"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" /> Düzenle
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-900/30 transition-colors text-red-400"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Sil
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Geri kalan içerik — tıklanabilir alan */}
+      <div className="p-4 pt-3 space-y-3" onClick={onClick}>
+        {/* Description */}
+        {project.description && (
+          <p className="text-xs line-clamp-2" style={{ color: 'var(--text-muted)' }}>
+            {project.description}
+          </p>
+        )}
+
+        {/* ── Progress bölümü ──────────────────────────── */}
+        {hasLines ? (
+          /* Replik bazlı: stacked bar + circular */
+          <div className="flex items-center gap-3">
+            <CircularProgress percent={prog.progressPercent} size={44} strokeWidth={4} />
+            <div className="flex-1 min-w-0">
+              <StackedProgress total={prog.totalLines} segments={segments} height={6} />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                {prog.completedLines.toLocaleString()} replik onaylandı
+                <span className="mx-1">·</span>
+                {prog.totalLines.toLocaleString()} toplam
+              </p>
             </div>
           </div>
+        ) : (
+          /* Görev bazlı: basit bar */
+          <div>
+            <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+              <span>{prog.completedTasks}/{prog.totalCasts} görev tamamlandı</span>
+              <span>{Math.round(prog.progressPercent)}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-700 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all"
+                style={{ width: `${prog.progressPercent}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge
-              label={PROJECT_STATUS_LABELS[project.status]}
-              className={PROJECT_STATUS_COLORS[project.status]}
-            />
-            {/* Kebab menu */}
-            {canManage && (
-              <div ref={menuRef} className="relative">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-                  className={cn(
-                    'p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-700',
-                    'transition-colors opacity-0 group-hover:opacity-100',
-                    menuOpen && 'opacity-100'
-                  )}
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-                {menuOpen && (
-                  <div className="absolute right-0 top-7 z-20 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1">
-                    {onEdit && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onEdit(); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Düzenle
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Sil
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+        {/* ── Stats row ─────────────────────────────────── */}
+        <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <div className="flex items-center gap-1">
+            <Users className="w-3.5 h-3.5" />
+            {prog.totalCasts} cast
+            {prog.totalCasts > 0 && (
+              <span className="text-slate-600 text-[10px]">
+                ({assignedCasts} atandı)
+              </span>
             )}
           </div>
-        </CardHeader>
 
-        {/* Geri kalan içerik — tıklanabilir alan */}
-        <div className="flex flex-col gap-3.5 cursor-pointer" onClick={onClick}>
-          {/* Description */}
-          {project.description && (
-            <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
-              {project.description}
-            </p>
-          )}
-
-          {/* ── Progress bölümü ──────────────────────────── */}
           {hasLines ? (
-            /* Replik bazlı: stacked bar + circular */
-            <div className="flex items-center gap-3">
-              <CircularProgress
-                percent={prog.progressPercent}
-                size={44}
-                strokeWidth={4.5}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                  <span>{prog.completedLines.toLocaleString()} replik onaylandı</span>
-                  <span>{prog.totalLines.toLocaleString()} toplam</span>
-                </div>
-                <StackedProgress
-                  total={prog.totalLines}
-                  segments={segments}
-                  height={6}
-                />
-              </div>
+            <div className="flex items-center gap-1">
+              <FileAudio className="w-3.5 h-3.5" />
+              {prog.totalLines.toLocaleString()} replik
             </div>
           ) : (
-            /* Görev bazlı: basit bar */
-            <div>
-              <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                <span>
-                  {prog.completedTasks}/{prog.totalCasts} görev tamamlandı
-                </span>
-                <span>{Math.round(prog.progressPercent)}%</span>
-              </div>
-              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${prog.progressPercent}%`,
-                    backgroundColor: project.coverColor ?? '#6366f1',
-                  }}
-                />
-              </div>
+            <div className="flex items-center gap-1">
+              <Mic2 className="w-3.5 h-3.5" />
+              {project.tasks.length} görev
             </div>
           )}
 
-          {/* ── Stats row ─────────────────────────────────── */}
-          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-            <span className="flex items-center gap-1">
-              <Users className="w-3.5 h-3.5" />
-              <span className="text-slate-400 font-medium">{prog.totalCasts}</span> cast
-              {prog.totalCasts > 0 && (
-                <span className="text-slate-600">
-                  ({assignedCasts} atandı)
-                </span>
-              )}
-            </span>
-
-            {hasLines ? (
-              <span className="flex items-center gap-1">
-                <FileAudio className="w-3.5 h-3.5" />
-                <span className="text-slate-400 font-medium">{prog.totalLines.toLocaleString()}</span> replik
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <Mic2 className="w-3.5 h-3.5" />
-                <span className="text-slate-400 font-medium">{project.tasks.length}</span> görev
-              </span>
-            )}
-
-            {project.dueDate && (
-              <span className="flex items-center gap-1 ml-auto">
-                <Calendar className="w-3.5 h-3.5" />
-                {formatDate(project.dueDate)}
-              </span>
-            )}
-          </div>
-
-          {/* ── Son güncelleme + task pills ───────────────── */}
-          <div className="flex items-center justify-between pt-0.5 border-t border-slate-700/40">
-            <span className="text-[10px] text-slate-600">
-              {formatRelativeDate(project.updatedAt)}
-            </span>
-            <div className="flex flex-wrap gap-1 justify-end">
-              {project.tasks.slice(0, 2).map((task) => (
-                <Badge
-                  key={task.id}
-                  label={`${task.characterName}: ${TASK_STATUS_LABELS[task.status]}`}
-                  className={`${TASK_STATUS_COLORS[task.status]} text-[10px]`}
-                />
-              ))}
-              {project.tasks.length > 2 && (
-                <span className="text-[10px] text-slate-600 px-1 py-0.5">
-                  +{project.tasks.length - 2}
-                </span>
-              )}
+          {project.dueDate && (
+            <div className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              {formatDate(project.dueDate)}
             </div>
+          )}
+        </div>
+
+        {/* ── Son güncelleme + task pills ───────────────── */}
+        <div className="flex items-center justify-between">
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {formatRelativeDate(project.updatedAt)}
+          </span>
+          <div className="flex items-center gap-1">
+            {project.tasks.slice(0, 2).map((task) => (
+              <span
+                key={task.id}
+                className="px-1.5 py-0.5 rounded text-[9px] truncate max-w-[60px]"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+              >
+                {task.characterName}
+              </span>
+            ))}
+            {project.tasks.length > 2 && (
+              <span
+                className="px-1.5 py-0.5 rounded text-[9px]"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+              >
+                +{project.tasks.length - 2}
+              </span>
+            )}
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

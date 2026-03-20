@@ -1,7 +1,3 @@
-// ============================================================
-// COLOR PICKER — Proje rengi seçimi için preset paletli bileşen
-// ============================================================
-
 import { cn } from '../../utils/cn';
 import { Check } from 'lucide-react';
 
@@ -28,9 +24,9 @@ interface ColorPickerProps {
 
 export function ColorPicker({ label, value, onChange }: ColorPickerProps) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="space-y-2">
       {label && (
-        <span className="text-sm font-medium text-slate-300">{label}</span>
+        <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</label>
       )}
       <div className="flex flex-wrap gap-2">
         {PRESET_COLORS.map((color) => (

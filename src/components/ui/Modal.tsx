@@ -40,7 +40,7 @@ export function Modal({ isOpen, onClose, title, subtitle, children, size = 'md',
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
@@ -50,7 +50,7 @@ export function Modal({ isOpen, onClose, title, subtitle, children, size = 'md',
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cn('relative w-full flex flex-col max-h-[90vh] modal-content rounded-2xl', SIZE_MAP[size])}
+        className={cn('relative w-full flex flex-col max-h-[90vh] rounded-2xl', SIZE_MAP[size])}
         style={{
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-strong)',

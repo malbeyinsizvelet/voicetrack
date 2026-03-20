@@ -73,7 +73,6 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
           </div>
 
-          {/* Dev mode: stack trace */}
           {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
             <details className="mt-6 text-left max-w-lg w-full">
               <summary className="text-xs text-slate-600 cursor-pointer hover:text-slate-400 transition-colors">
@@ -93,7 +92,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-// ─── Functional wrapper ──────────────────────────────────────
 export function ErrorState({
   title = 'Bir hata oluştu',
   message,

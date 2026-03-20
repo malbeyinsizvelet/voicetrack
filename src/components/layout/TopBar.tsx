@@ -28,7 +28,6 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Dropdown dışarı tıklama
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -68,7 +67,6 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
     >
       {/* ── Sol ─────────────────────────────────────── */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* Hamburger — sadece mobil */}
         <button
           onClick={toggleSidebar}
           className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg transition-colors vt-hover shrink-0"
@@ -96,7 +94,6 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
       {/* ── Sağ ─────────────────────────────────────── */}
       <div className="flex items-center gap-1.5 shrink-0">
 
-        {/* Sayfa aksiyonları */}
         {actions && (
           <div className="hidden sm:flex items-center gap-2 mr-1">
             {actions}
@@ -168,7 +165,7 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
 
             {dropdownOpen && (
               <div
-                className="absolute right-0 top-full mt-2 w-60 rounded-xl overflow-hidden z-50 animate-scale-in"
+                className="absolute right-0 top-full mt-2 w-60 rounded-xl overflow-hidden z-50"
                 style={{
                   background: 'var(--bg-elevated)',
                   border:     '1px solid var(--border-strong)',
@@ -206,38 +203,19 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
                   </div>
                 </div>
 
-                {/* Menü */}
-                <div className="p-1.5">
-                  <button
-                    onClick={() => { setDropdown(false); navigate('/settings'); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left vt-hover"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    Profil & Ayarlar
-                  </button>
-                  <button
-                    onClick={() => { toggleTheme(); setDropdown(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left vt-hover"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    {isDark ? 'Açık Tema' : 'Koyu Tema'}
-                  </button>
-                </div>
-
                 {/* Çıkış */}
-                <div className="p-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="p-2">
                   <button
                     onClick={handleLogout}
                     disabled={loggingOut}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 vt-hover"
-                    style={{ color: 'var(--text-primary)' }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors vt-hover"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     {loggingOut
                       ? <span className="w-4 h-4 border border-current border-t-transparent rounded-full animate-spin" />
                       : <LogOut className="w-4 h-4" />
                     }
-                    {loggingOut ? 'Çıkış yapılıyor...' : 'Çıkış Yap'}
+                    Çıkış Yap
                   </button>
                 </div>
               </div>

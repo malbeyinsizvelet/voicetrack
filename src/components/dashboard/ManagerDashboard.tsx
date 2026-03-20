@@ -38,7 +38,6 @@ export function ManagerDashboard({ currentUser, projects, onCreateProject }: Man
   const overall = useMemo(() => computeOverallProgress(projects), [projects]);
   const allTasks = useMemo(() => projects.flatMap((p) => p.tasks), [projects]);
 
-  const pendingTasks    = allTasks.filter((t) => t.status === 'pending').length;
   const inProgressTasks = allTasks.filter((t) => t.status === 'in_progress').length;
   const uploadedTasks   = allTasks.filter((t) => t.status === 'uploaded').length;
   const doneTasks       = allTasks.filter((t) =>
@@ -70,15 +69,15 @@ export function ManagerDashboard({ currentUser, projects, onCreateProject }: Man
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-        {/* ── Stat Cards ─────────────────────────────── */}
+        {/* ── Stat Cards ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Toplam Proje"     value={overall.totalProjects}         icon={<FolderOpen className="w-5 h-5" />} />
-          <StatCard label="Aktif Proje"      value={overall.activeProjects}        icon={<Clock className="w-5 h-5" />} />
-          <StatCard label="Devam Eden"       value={inProgressTasks + uploadedTasks} icon={<Mic2 className="w-5 h-5" />} />
-          <StatCard label="Tamamlanan Görev" value={doneTasks}                     icon={<CheckCircle2 className="w-5 h-5" />} />
+          <StatCard label="Toplam Proje"     value={overall.totalProjects}                      icon={<FolderOpen className="w-5 h-5" />} />
+          <StatCard label="Aktif Proje"      value={overall.activeProjects}                     icon={<Clock className="w-5 h-5" />} />
+          <StatCard label="Devam Eden"       value={inProgressTasks + uploadedTasks}            icon={<Mic2 className="w-5 h-5" />} />
+          <StatCard label="Tamamlanan Görev" value={doneTasks}                                  icon={<CheckCircle2 className="w-5 h-5" />} />
         </div>
 
-        {/* ── Genel İlerleme ─────────────────────── */}
+        {/* ── Genel İlerleme ────────────────────────────────────────── */}
         <OverallProgressBanner
           totalProjects={overall.totalProjects}
           activeProjects={overall.activeProjects}
@@ -91,11 +90,11 @@ export function ManagerDashboard({ currentUser, projects, onCreateProject }: Man
           assignedCasts={allTasks.filter((t) => t.assignedArtistName && t.assignedArtistName !== 'Atanmamış').length}
         />
 
-        {/* ── Proje Listesi ─────────────────────────── */}
+        {/* ── Proje Listesi ─────────────────────────────────────────── */}
         <div>
           <div className="flex items-center justify-between mb-3">
 
-            {/* Tab filtreler */}
+            {/* Tab filtreleri */}
             <div
               className="flex gap-0.5 rounded-lg p-0.5"
               style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
@@ -114,17 +113,14 @@ export function ManagerDashboard({ currentUser, projects, onCreateProject }: Man
                       background: isActive ? 'var(--accent)' : 'transparent',
                       color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
                     }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.color = 'var(--text-secondary)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.color = 'var(--text-muted)';
-                    }}
                   >
                     {tab.label}
                     <span
                       className="text-[10px] px-1 rounded"
-                      style={{ color: isActive ? 'var(--accent-text)' : 'var(--text-muted)', opacity: 0.7 }}
+                      style={{
+                        background: isActive ? 'rgba(255,255,255,0.15)' : 'var(--bg-base)',
+                        color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
+                      }}
                     >
                       {count}
                     </span>
@@ -133,108 +129,61 @@ export function ManagerDashboard({ currentUser, projects, onCreateProject }: Man
               })}
             </div>
 
-            {/* View mode toggle */}
-            <div
-              className="flex items-center gap-0.5 rounded-lg p-0.5"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              {([
-                { mode: 'table' as ViewMode, Icon: List,       title: 'Tablo görünümü' },
-                { mode: 'grid'  as ViewMode, Icon: LayoutGrid, title: 'Kart görünümü'  },
-              ] as const).map(({ mode, Icon, title }) => {
-                const isActive = viewMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className="p-1.5 rounded-md transition-all"
-                    title={title}
-                    style={{
-                      background: isActive ? 'var(--accent)' : 'transparent',
-                      color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.color = 'var(--text-secondary)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.color = 'var(--text-muted)';
-                    }}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </button>
-                );
-              })}
+            {/* View mod */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setViewMode('table')}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{
+                  background: viewMode === 'table' ? 'var(--bg-elevated)' : 'transparent',
+                  color: viewMode === 'table' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  border: viewMode === 'table' ? '1px solid var(--border)' : '1px solid transparent',
+                }}
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{
+                  background: viewMode === 'grid' ? 'var(--bg-elevated)' : 'transparent',
+                  color: viewMode === 'grid' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  border: viewMode === 'grid' ? '1px solid var(--border)' : '1px solid transparent',
+                }}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
           {filteredProjects.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center py-12 rounded-xl"
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-            >
-              <AlertCircle className="w-8 h-8 mb-2" style={{ color: 'var(--text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Bu filtrede proje bulunamadı.
-              </p>
-              <button
-                className="mt-2 text-xs underline transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onClick={() => setProjectTab('all')}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-              >
-                Tümünü göster
-              </button>
-            </div>
+            <Card className="py-10 text-center">
+              <AlertCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-slate-500 text-sm">Bu kategoride proje yok.</p>
+            </Card>
           ) : viewMode === 'table' ? (
             <ProjectSummaryTable projects={filteredProjects} />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredProjects.map((project) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredProjects.map((p) => (
                 <ProjectCard
-                  key={project.id}
-                  project={project}
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  key={p.id}
+                  project={p}
+                  onClick={() => navigate(`/projects/${p.id}`)}
+                  canManage
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Son Aktiviteler ─────────────────────── */}
-        {allTasks.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Son Görev Aktiviteleri
-              </h2>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {allTasks.length} görev toplam
-              </span>
-            </div>
-            <Card className="p-0 overflow-hidden">
-              <RecentActivityTable tasks={allTasks} projects={projects} maxRows={10} />
-            </Card>
+        {/* ── Son Aktivite ──────────────────────────────────────────── */}
+        <Card>
+          <div className="px-5 py-4 border-b border-slate-700/50">
+            <h3 className="text-sm font-semibold text-slate-300">Son Görev Aktiviteleri</h3>
           </div>
-        )}
-
-        {/* ── Bekleyen Uyarı ────────────────────── */}
-        {pendingTasks > 0 && (
-          <div
-            className="flex items-start gap-3 rounded-xl p-4"
-            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-          >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--text-secondary)' }} />
-            <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {pendingTasks} görev henüz başlanmamış
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Bu görevler için kaynak ses yüklendi ancak sanatçı henüz kayıt yapmadı.
-              </p>
-            </div>
-          </div>
-        )}
+          <RecentActivityTable tasks={allTasks} projects={projects} maxRows={8} />
+        </Card>
 
       </div>
     </div>

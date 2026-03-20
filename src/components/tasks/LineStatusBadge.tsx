@@ -48,7 +48,7 @@ export function LineStatusBadge({ status, size = 'sm', showIcon = true }: Props)
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap ${textSize} ${padding}`}
+      className={`inline-flex items-center gap-1 rounded-full font-medium ${textSize} ${padding}`}
       style={config.style}
     >
       {showIcon && config.icon}

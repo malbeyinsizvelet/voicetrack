@@ -1,14 +1,5 @@
 // ============================================================
-// BULK UPLOAD MODAL — Phase 8 (Staging)
-//
-// Yeni akış:
-//   1. Kullanıcı dosyaları seçer
-//   2. Dosyalar staging queue'ya eklenir (HF'ye GİTMEZ)
-//   3. StagingBar'da "N dosya hazır → Toplu Gönder" görünür
-//   4. Kullanıcı StagingBar'dan "Toplu Gönder" basınca TEK commit ile HF'ye gider
-//   5. Modal kapanır
-//
-// Proje klasör yapısı: hfPathService.ts (Project RE7/Originals/...)
+// BULK UPLOAD MODAL – Phase 8 (Staging)
 // ============================================================
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -19,7 +10,7 @@ import {
 import { Modal }          from '../ui/Modal';
 import { Button }         from '../ui/Button';
 import { FileDropZone }   from './FileDropZone';
-import { UploadQueueItem, DuplicateWarning } from './UploadQueueItem';
+import { UploadQueueItem } from './UploadQueueItem';
 import { useProjects }    from '../../context/ProjectContext';
 import { useAuth }        from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -31,12 +22,11 @@ import {
 } from '../../services/audioUploadService';
 import type { UploadedFileEntry, BulkUploadResult, Character, Task } from '../../types';
 
-// ─── Props ───────────────────────────────────────────────────
 interface BulkUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
-  projectTitle: string;           // HF klasör adı için
+  projectTitle: string;
   character: Character;
   task: Task;
   onSuccess?: (result: BulkUploadResult) => void;
@@ -44,7 +34,6 @@ interface BulkUploadModalProps {
 
 type Phase = 'select' | 'review' | 'staged';
 
-// ─── Component ───────────────────────────────────────────────
 export function BulkUploadModal({
   isOpen,
   onClose,
@@ -64,14 +53,12 @@ export function BulkUploadModal({
   const [showQueue, setShowQueue]   = useState(true);
   const queueRef                    = useRef<HTMLDivElement>(null);
 
-  // Mevcut dosya adları (duplicate tespiti)
   const existingFileNames = new Set(
     (task.lines ?? [])
       .map((l) => l.sourceFile?.fileName?.toLowerCase())
       .filter(Boolean) as string[]
   );
 
-  // Modal kapanınca temizle
   useEffect(() => {
     if (!isOpen) {
       const t = setTimeout(() => {
@@ -83,7 +70,6 @@ export function BulkUploadModal({
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Dosya ekleme ─────────────────────────────────────────
   const handleFilesSelected = useCallback((files: File[]) => {
     const currentNames = new Set([
       ...Array.from(existingFileNames),
@@ -114,7 +100,6 @@ export function BulkUploadModal({
     setPhase('select');
   }, [entries]);
 
-  // ── STAGING — dosyaları queue'ya ekle (HF'ye gönderme!) ──
   const handleStageAll = useCallback(() => {
     if (!currentUser) return;
 
@@ -125,7 +110,6 @@ export function BulkUploadModal({
     let stagedCount = 0;
 
     for (const entry of toStage) {
-      // StagingContext'e ekle — commit StagingBar'dan yapılacak
       stageSource(
         entry.file,
         {
@@ -135,11 +119,9 @@ export function BulkUploadModal({
           taskId: task.id,
           uploadedBy: currentUser.id,
         },
-        // Commit tamamlandığında context'e yaz
         async (_committedItem, audioFile) => {
           await bulkUploadSourceFiles(projectId, task.id, [audioFile]);
 
-          // Bildirim (tek seferlik — ilk dosyada yeterli)
           if (stagedCount === 0) {
             notify({
               type: 'artist_uploaded',
@@ -154,123 +136,91 @@ export function BulkUploadModal({
       );
     }
 
-    // Özet
     const result: BulkUploadResult = {
       taskId: task.id,
       characterId: character.id,
       totalFiles: entries.length,
-      successCount: toStage.length,
-      errorCount: entries.filter((e) => e.status === 'error').length,
-      duplicateCount: entries.filter((e) => e.status === 'duplicate').length,
-      skippedCount: 0,
-      newLineCount: toStage.length,
+      stagedFiles: toStage.length,
+      skippedFiles: entries.filter((e) => e.status === 'skipped').length,
     };
 
     onSuccess?.(result);
-    setPhase('staged');
-  }, [
-    entries, currentUser, projectId, projectTitle,
-    character, task, stageSource, bulkUploadSourceFiles,
-    notify, onSuccess,
-  ]);
+    onClose();
+  }, [currentUser, entries, stageSource, projectId, projectTitle, character, task, bulkUploadSourceFiles, notify, onSuccess, onClose]);
 
-  // ── İstatistikler ─────────────────────────────────────────
-  const valid      = entries.filter((e) => e.status === 'queued');
-  const dupes      = entries.filter((e) => e.status === 'duplicate');
-  const errors     = entries.filter((e) => e.status === 'error');
-  const totalBytes = valid.reduce((s, e) => s + e.fileSize, 0);
+  const queuedCount   = entries.filter((e) => e.status === 'queued').length;
+  const duplicateCount = entries.filter((e) => e.status === 'duplicate').length;
+  const skippedCount  = entries.filter((e) => e.status === 'skipped').length;
+  const totalSize     = entries.reduce((s, e) => s + e.fileSize, 0);
 
-  // ── Render ────────────────────────────────────────────────
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Kaynak Ses Yükle"
-      subtitle={`${character.name} · ${task.id}`}
-      size="xl"
+      title={`Toplu Ses Yükle — ${character.name}`}
+      size="lg"
     >
-      <div className="flex flex-col gap-4" style={{ minHeight: 320 }}>
-
-        {/* ── select ── */}
-        {phase === 'select' && (
-          <FileDropZone
-            onFilesSelected={handleFilesSelected}
-          />
-        )}
-
-        {/* ── review ── */}
-        {phase === 'review' && (
+      <div className="space-y-4">
+        {phase === 'select' ? (
+          <FileDropZone onFilesSelected={handleFilesSelected} />
+        ) : (
           <>
-            {/* Özet satırı */}
-            <div
-              className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl text-sm"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              <span style={{ color: 'var(--text-primary)' }}>
-                <strong>{valid.length}</strong> dosya
-              </span>
-              <span style={{ color: 'var(--text-muted)' }}>{formatFileSize(totalBytes)}</span>
-              {dupes.length > 0 && (
-                <span style={{ color: 'var(--text-secondary)' }}>
-                  {dupes.length} kopya
-                </span>
-              )}
-              {errors.length > 0 && (
-                <span style={{ color: 'var(--text-primary)' }}>
-                  {errors.length} hata
-                </span>
-              )}
-              <div className="flex-1" />
-              <button
-                onClick={() => setPhase('select')}
-                className="text-xs"
-                style={{ color: 'var(--text-muted)' }}
-                type="button"
-              >
-                + Daha fazla ekle
-              </button>
-            </div>
-
-            {dupes.length > 0 && (
-              <DuplicateWarning count={dupes.length} />
-            )}
-
-            {/* Kuyruk listesi */}
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                Dosya Listesi ({entries.length})
-              </span>
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <Package size={14} />
+                <span>{entries.length} dosya · {formatFileSize(totalSize)}</span>
+                {duplicateCount > 0 && (
+                  <span className="text-amber-400">· {duplicateCount} kopya</span>
+                )}
+                {skippedCount > 0 && (
+                  <span style={{ color: 'var(--text-muted)' }}>· {skippedCount} atlandı</span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.accept = '.wav,.mp3,.flac,.aiff,.ogg,.m4a';
+                    input.onchange = (e) => {
+                      const files = Array.from((e.target as HTMLInputElement).files ?? []);
+                      if (files.length > 0) handleFilesSelected(files);
+                    };
+                    input.click();
+                  }}
+                >
+                  Dosya Ekle
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={<Trash2 className="w-3.5 h-3.5" />}
                   onClick={handleClearAll}
-                  className="text-xs flex items-center gap-1 hover:opacity-70 transition-opacity"
-                  style={{ color: 'var(--text-muted)' }}
-                  type="button"
                 >
-                  <Trash2 size={11} /> Temizle
-                </button>
+                  Temizle
+                </Button>
                 <button
-                  onClick={() => setShowQueue((s) => !s)}
-                  className="text-xs flex items-center gap-1 hover:opacity-70 transition-opacity"
+                  onClick={() => setShowQueue((v) => !v)}
+                  className="p-1 rounded transition-opacity hover:opacity-70"
                   style={{ color: 'var(--text-muted)' }}
                   type="button"
                 >
-                  {showQueue ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                  {showQueue ? 'Gizle' : 'Göster'}
+                  {showQueue ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
               </div>
             </div>
 
             {showQueue && (
-              <div
-                ref={queueRef}
-                className="space-y-1 max-h-64 overflow-y-auto pr-1"
-              >
-                {entries.map((entry, idx) => (
+              <div ref={queueRef} className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                {entries.map((entry, i) => (
                   <UploadQueueItem
                     key={entry.uid}
                     entry={entry}
-                    index={idx}
+                    index={i}
                     onRemove={handleRemove}
                     onSkip={handleSkip}
                     isUploading={false}
@@ -279,83 +229,26 @@ export function BulkUploadModal({
               </div>
             )}
 
-            {/* Footer aksiyonları */}
-            <div className="flex items-center justify-between gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-              <Button variant="ghost" onClick={onClose} size="sm">
+            <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border-base)' }}>
+              <Button variant="ghost" onClick={onClose}>
                 İptal
               </Button>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPhase('select')}
-                  leftIcon={<RefreshCw size={13} />}
-                >
-                  Tekrar Seç
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleStageAll}
-                  disabled={valid.length === 0 && dupes.length === 0}
-                  leftIcon={<Package size={13} />}
-                >
-                  Kuyruğa Ekle ({valid.length + dupes.length})
-                </Button>
-              </div>
+              <Button
+                leftIcon={<Upload className="w-4 h-4" />}
+                onClick={handleStageAll}
+                disabled={queuedCount === 0 && duplicateCount === 0}
+              >
+                Staging'e Ekle ({queuedCount + duplicateCount})
+              </Button>
             </div>
           </>
         )}
 
-        {/* ── staged ── */}
-        {phase === 'staged' && (
-          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: 'var(--bg-elevated)' }}
-            >
-              <Package size={28} style={{ color: 'var(--text-primary)' }} />
-            </div>
-            <div>
-              <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {valid.length + dupes.length} dosya kuyruğa eklendi
-              </p>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-                Ekranın altındaki çubuktan "Toplu Gönder" butonuyla Hugging Face'e gönderin.
-              </p>
-            </div>
-            <div
-              className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm w-full max-w-sm"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              <Upload size={15} style={{ color: 'var(--text-secondary)' }} />
-              <span style={{ color: 'var(--text-secondary)' }}>
-                Staging çubuğu aşağıda görünüyor
-              </span>
-            </div>
-            <Button variant="primary" size="sm" onClick={onClose}>
-              Tamam
-            </Button>
-          </div>
-        )}
-
-        {/* ── select'te sürükle-bırak metin ipucu ── */}
         {phase === 'select' && (
-          <div className="flex flex-col items-center gap-2 mt-2">
-            <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-              Dosyaları sürükleyip bırakabilir veya klasör seçebilirsiniz.
-              Desteklenen formatlar: .wav, .mp3, .m4a, .ogg, .flac, .aif
-            </p>
-            {entries.length > 0 && (
-              <button
-                className="text-xs"
-                style={{ color: 'var(--text-secondary)' }}
-                onClick={() => setPhase('review')}
-                type="button"
-              >
-                ← Seçilen dosyalara dön ({entries.length})
-              </button>
-            )}
+          <div className="flex justify-end pt-2 border-t" style={{ borderColor: 'var(--border-base)' }}>
+            <Button variant="ghost" onClick={onClose}>
+              İptal
+            </Button>
           </div>
         )}
       </div>
