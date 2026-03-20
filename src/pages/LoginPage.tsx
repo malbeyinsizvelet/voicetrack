@@ -203,7 +203,7 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 pr-12 rounded-xl text-sm outline-none transition-colors"
+                  className="w-full px-4 py-3 pr-11 rounded-xl text-sm outline-none transition-colors"
                   style={{
                     background: 'var(--bg-input)',
                     border: '1px solid var(--border)',
@@ -215,10 +215,8 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPass((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
                   style={{ color: 'var(--text-muted)' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -229,107 +227,56 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                         font-semibold text-sm transition-all
-                         disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-opacity"
               style={{
                 background: 'var(--accent)',
                 color: 'var(--accent-text)',
+                opacity: isLoading ? 0.7 : 1,
               }}
-              onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.opacity = '0.88'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
             >
               {isLoading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                  Giriş yapılıyor...
-                </>
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <>
-                  <LogIn className="w-4 h-4" />
-                  Giriş Yap
-                </>
+                <LogIn className="w-4 h-4" />
               )}
+              {isLoading ? 'Giriş yapılıyor…' : 'Giriş Yap'}
             </button>
           </form>
 
           {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full" style={{ borderTop: '1px solid var(--border)' }} />
-            </div>
-            <div className="relative flex justify-center">
-              <span
-                className="px-3 text-xs flex items-center gap-1.5"
-                style={{ background: 'var(--bg-base)', color: 'var(--text-muted)' }}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Demo hesaplar</span>
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+          </div>
+
+          {/* Quick logins */}
+          <div className="grid grid-cols-2 gap-2">
+            {MOCK_USERS.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => handleQuickLogin(user.id)}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-left transition-colors"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
-                <Zap className="w-3 h-3" />
-                Mock Kullanıcılarla Hızlı Giriş
-              </span>
-            </div>
+                <Zap className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                    {user.name.split(' ')[0]}
+                  </p>
+                  <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                    {ROLE_LABELS[user.role]}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
-
-          {/* Quick Login Cards */}
-          <div className="grid grid-cols-1 gap-1.5">
-            {MOCK_USERS.map((user) => {
-              const cred = MOCK_CREDENTIALS.find((c) => c.userId === user.id);
-              return (
-                <button
-                  key={user.id}
-                  onClick={() => handleQuickLogin(user.id)}
-                  disabled={isLoading}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-left
-                             transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                  style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-elevated)';
-                    e.currentTarget.style.borderColor = 'var(--border-strong)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-surface)';
-                    e.currentTarget.style.borderColor = 'var(--border)';
-                  }}
-                >
-                  {/* Avatar */}
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
-                    style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                  >
-                    {user.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                      {user.name}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {ROLE_LABELS[user.role]}
-                    </p>
-                  </div>
-
-                  {/* Password hint */}
-                  {cred && (
-                    <span
-                      className="text-xs font-mono shrink-0 hidden sm:block"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {cred.password}
-                    </span>
-                  )}
-
-                  <LogIn
-                    className="w-3.5 h-3.5 shrink-0 transition-colors"
-                    style={{ color: 'var(--text-muted)' }}
-                  />
-                </button>
-              );
-            })}
-          </div>
-
         </div>
       </div>
     </div>

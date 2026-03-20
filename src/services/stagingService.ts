@@ -1,35 +1,26 @@
 // ============================================================
-// STAGING SERVICE — Phase 9
+// STAGING SERVICE — HF commit + Supabase metadata sync
 //
-// Değişiklikler:
-//   - Chunked commit: CHUNK_SIZE başına ayrı HF commit
-//   - Her chunk bağımsız hata alabilir (diğerleri devam eder)
-//   - CommitResult'a batchInfo eklendi
+// Dosya akışı:
+//   1. Dosyalar staged queue'ya eklenir (geçici, localStorage)
+//   2. commitAll() → HF'ye toplu upload
+//   3. HF başarılıysa → Supabase'e audio_files + recording_versions metadata
+//   4. Hata durumunda Supabase yazımı atlanır ama HF commit sonucu korunur
 // ============================================================
 
 import { uploadFiles } from '@huggingface/hub';
-import {
-  storageConfig,
-  isStorageEnabled,
-  buildAuthorizedUrl,
-} from '../config/storage.config';
+import { storageConfig, isStorageEnabled, buildAuthorizedUrl } from '../config/storage.config';
 import { buildSourcePath, buildRecordedPath } from './hfPathService';
+import { supabase, isSupabaseEnabled } from '../lib/supabase';
+import { createLogger } from '../lib/logger';
 import type { AudioFile } from '../types';
 
-// ─── Sabitler ────────────────────────────────────────────────
+const log = createLogger('StagingService');
 
-/** Tek HF commit'te gönderilecek max dosya sayısı */
 export const CHUNK_SIZE = 50;
 
-// ─── Tipler ──────────────────────────────────────────────────
-
 export type StagedItemType = 'source' | 'recorded';
-
-export type StagedItemStatus =
-  | 'staged'       // Kuyruğa alındı, gönderilmedi
-  | 'committing'   // Gönderiliyor
-  | 'committed'    // Başarıyla gönderildi
-  | 'error';       // Hata aldı
+export type StagedItemStatus = 'staged' | 'committing' | 'committed' | 'error';
 
 export interface StagedSourceItem {
   type: 'source';
@@ -74,8 +65,6 @@ export interface StagedRecordedItem {
 
 export type StagedItem = StagedSourceItem | StagedRecordedItem;
 
-// ─── Commit Sonucu ────────────────────────────────────────────
-
 export interface BatchInfo {
   batchIndex: number;
   batchTotal: number;
@@ -91,30 +80,17 @@ export interface CommitResult {
   batches: BatchInfo[];
 }
 
-// ─── Commit Seçenekleri ───────────────────────────────────────
-
 export interface CommitOptions {
-  /** Her item commit'lenince çağrılır (done, total) */
   onProgress?: (committed: number, total: number) => void;
-  /** Item commit'lenince ProjectContext güncelleme için */
   onItemDone?: (item: StagedItem, audioFile: AudioFile) => void;
-  /** Her batch tamamlanınca (başarı veya hata) */
   onBatchDone?: (batch: BatchInfo) => void;
 }
-
-// ─── UID Üretici ─────────────────────────────────────────────
 
 export function genStagingId(): string {
   return `stg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-// ─── AudioFile Oluşturucu ─────────────────────────────────────
-
-function makeAudioFile(
-  item: StagedItem,
-  url: string,
-  committedAt: string
-): AudioFile {
+function makeAudioFile(item: StagedItem, url: string, committedAt: string): AudioFile {
   const ext = item.fileName.split('.').pop() ?? '';
   return {
     id: `af_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -129,17 +105,11 @@ function makeAudioFile(
   };
 }
 
-// ─── Array Chunk Yardımcısı ───────────────────────────────────
-
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
   return chunks;
 }
-
-// ─── HF Path Hesapla ─────────────────────────────────────────
 
 function getHFPath(item: StagedItem): string {
   if (item.type === 'source') {
@@ -159,36 +129,96 @@ function getHFPath(item: StagedItem): string {
   });
 }
 
-// ─── Mock commit (storage disabled) ──────────────────────────
+// ─── Supabase metadata yazımı (HF commit sonrası) ────────────
+async function persistAudioFileToSupabase(
+  item: StagedItem,
+  hfPath: string,
+  hfUrl: string,
+  committedAt: string
+): Promise<string | null> {
+  if (!isSupabaseEnabled()) return null;
 
-async function mockCommitItems(
-  items: StagedItem[],
-  options: CommitOptions
-): Promise<CommitResult> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+
+    const audioInsert: Record<string, unknown> = {
+      task_id: item.taskId,
+      type: item.type === 'source' ? 'source' : 'recorded',
+      file_name: item.fileName,
+      file_size: item.fileSize,
+      mime_type: item.mimeType || null,
+      hf_path: hfPath,
+      hf_url: hfUrl,
+      storage_provider: 'huggingface',
+      uploaded_by: item.uploadedBy,
+      uploaded_at: committedAt,
+    };
+
+    if (item.type === 'recorded') {
+      audioInsert.line_id = item.lineId;
+      audioInsert.version_number = item.versionNumber;
+    }
+
+    const { data: audioFile, error: audioError } = await db
+      .from('audio_files')
+      .insert(audioInsert)
+      .select('id')
+      .single();
+
+    if (audioError) {
+      log.warn('audio_files insert failed', { error: audioError.message });
+      return null;
+    }
+
+    // Recorded için recording_versions kaydı da oluştur
+    if (item.type === 'recorded') {
+      const { error: versionError } = await db.from('recording_versions').insert({
+        line_id: item.lineId,
+        version: item.versionNumber,
+        audio_file_id: audioFile.id,
+        uploaded_at: committedAt,
+        uploaded_by: item.uploadedBy,
+        qc_status: 'pending',
+      });
+
+      if (versionError) {
+        log.warn('recording_versions insert failed', { error: versionError.message });
+      }
+    }
+
+    log.info('Supabase audio metadata saved', { id: audioFile.id, type: item.type });
+    return audioFile.id as string;
+  } catch (err) {
+    log.warn('persistAudioFileToSupabase failed', { err });
+    return null;
+  }
+}
+
+// ─── Mock commit (HF kapalıyken) ──────────────────────────────
+async function mockCommitItems(items: StagedItem[], options: CommitOptions): Promise<CommitResult> {
   const { onProgress, onItemDone, onBatchDone } = options;
-  const now = new Date().toISOString();
+  const committedAt = new Date().toISOString();
   const chunks = chunkArray(items, CHUNK_SIZE);
   const success: StagedItem[] = [];
   let doneCount = 0;
-
-  console.info(
-    `[Staging MOCK] ${items.length} dosya, ${chunks.length} batch — VITE_HF_TOKEN ayarla.`
-  );
-
   const batches: BatchInfo[] = [];
+
+  log.info(`[Staging MOCK] ${items.length} dosya, ${chunks.length} batch`);
 
   for (let bi = 0; bi < chunks.length; bi++) {
     const chunk = chunks[bi];
     await new Promise((r) => setTimeout(r, 150 * chunk.length));
 
     for (const item of chunk) {
-      const mockUrl = `mock://staged/${item.type}/${item.taskId}/${item.fileName}`;
-      const audioFile = makeAudioFile(item, mockUrl, now);
+      const mockPath = getHFPath(item);
+      const mockUrl = `mock://staged/${mockPath}`;
+      const audioFile = makeAudioFile(item, mockUrl, committedAt);
       const committed: StagedItem = {
         ...item,
         status: 'committed',
         committedUrl: mockUrl,
-        committedAt: now,
+        committedAt,
         audioFileId: audioFile.id,
       };
       success.push(committed);
@@ -210,34 +240,16 @@ async function mockCommitItems(
   return { success, failed: [], totalCommits: chunks.length, batches };
 }
 
-// ─── Ana Commit Fonksiyonu — Chunked ─────────────────────────
-
-/**
- * Staged item listesini CHUNK_SIZE'lık batch'lere bölerek HF'ye gönderir.
- *
- * - Her batch için ayrı HF commit atılır
- * - Bir batch hata alırsa sadece o batch'teki item'lar failed'a düşer
- * - Diğer batch'ler çalışmaya devam eder
- * - onBatchDone callback'i her batch sonrası tetiklenir
- *
- * DISABLED modda mock simülasyon çalışır.
- */
+// ─── Gerçek HF commit ─────────────────────────────────────────
 export async function commitStagedItems(
   items: StagedItem[],
   options: CommitOptions = {}
 ): Promise<CommitResult> {
   const { onProgress, onItemDone, onBatchDone } = options;
 
-  if (items.length === 0) {
-    return { success: [], failed: [], totalCommits: 0, batches: [] };
-  }
+  if (items.length === 0) return { success: [], failed: [], totalCommits: 0, batches: [] };
+  if (!isStorageEnabled()) return mockCommitItems(items, options);
 
-  // Mock mod
-  if (!isStorageEnabled()) {
-    return mockCommitItems(items, options);
-  }
-
-  // ── HF Mod — Chunked ─────────────────────────────────────
   const chunks = chunkArray(items, CHUNK_SIZE);
   const allSuccess: StagedItem[] = [];
   const allFailed: Array<{ item: StagedItem; error: string }> = [];
@@ -247,12 +259,8 @@ export async function commitStagedItems(
 
   for (let bi = 0; bi < chunks.length; bi++) {
     const chunk = chunks[bi];
-
-    // Path'leri hesapla
     const pathMap = new Map<string, string>();
-    for (const item of chunk) {
-      pathMap.set(item.uid, getHFPath(item));
-    }
+    for (const item of chunk) pathMap.set(item.uid, getHFPath(item));
 
     const hfFiles = chunk.map((item) => ({
       path: pathMap.get(item.uid)!,
@@ -267,22 +275,25 @@ export async function commitStagedItems(
         : `VoiceTrack: batch ${bi + 1}/${chunks.length} (${chunk.length} files)`;
 
     try {
+      // ── 1. HF'ye yükle ──
       await uploadFiles({
-        repo: {
-          type: storageConfig.repoType,
-          name: storageConfig.repoId,
-        },
+        repo: { type: storageConfig.repoType, name: storageConfig.repoId },
         accessToken: storageConfig.token,
         branch: storageConfig.branch,
         commitTitle,
         files: hfFiles,
       });
 
-      // Batch başarılı
+      // ── 2. HF başarılı → Supabase metadata ──
       for (const item of chunk) {
-        const path = pathMap.get(item.uid)!;
-        const url = buildAuthorizedUrl(path);
+        const hfPath = pathMap.get(item.uid)!;
+        const url = buildAuthorizedUrl(hfPath);
         const audioFile = makeAudioFile(item, url, committedAt);
+
+        // Supabase'e paralel yaz (başarısız olsa bile commit kabul edilir)
+        const supabaseId = await persistAudioFileToSupabase(item, hfPath, url, committedAt);
+        if (supabaseId) audioFile.id = supabaseId;
+
         const committed: StagedItem = {
           ...item,
           status: 'committed',
@@ -304,10 +315,9 @@ export async function commitStagedItems(
       };
       batches.push(batchInfo);
       onBatchDone?.(batchInfo);
-
     } catch (err) {
-      // Bu batch hata aldı — diğerlerine devam
       const errorMsg = err instanceof Error ? err.message : String(err);
+      log.warn(`Batch ${bi + 1} failed`, { errorMsg });
 
       for (const item of chunk) {
         allFailed.push({ item, error: errorMsg });
@@ -327,10 +337,5 @@ export async function commitStagedItems(
     }
   }
 
-  return {
-    success: allSuccess,
-    failed: allFailed,
-    totalCommits: chunks.length,
-    batches,
-  };
+  return { success: allSuccess, failed: allFailed, totalCommits: chunks.length, batches };
 }

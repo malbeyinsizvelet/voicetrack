@@ -1,20 +1,17 @@
 // ============================================================
 // CORE DOMAIN TYPES
-// Gerçek backend entegrasyonunda bu tipler API response'larıyla eşleşecek.
 // ============================================================
 
 export type UserRole = 'admin' | 'project_manager' | 'voice_artist' | 'qc_reviewer';
-
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'archived';
-
 export type TaskStatus =
-  | 'pending'       // Henüz başlanmadı
-  | 'in_progress'   // Kayıt devam ediyor
-  | 'uploaded'      // Sanatçı yükledi, QC bekliyor
-  | 'qc_approved'   // QC onayladı
-  | 'qc_rejected'   // QC reddetti, tekrar gerekiyor
-  | 'mixed'         // Mix/master aşaması tamamlandı
-  | 'final';        // Final, teslime hazır
+  | 'pending'
+  | 'in_progress'
+  | 'uploaded'
+  | 'qc_approved'
+  | 'qc_rejected'
+  | 'mixed'
+  | 'final';
 
 export type AudioFileType = 'source' | 'recorded' | 'mixed' | 'final';
 
@@ -34,82 +31,52 @@ export interface AudioFile {
   taskId: string;
   type: AudioFileType;
   fileName: string;
-  fileSize: number;     // bytes
-  mimeType?: string;    // audio/wav, audio/mpeg vb. — gerçek sistemde zorunlu
-  duration?: number;    // seconds
-  url: string;          // Gerçek sistemde: cloud storage presigned URL veya CDN URL
-  uploadedBy: string;   // userId
-  uploadedAt: string;   // ISO string
-  // Gerçek sistemde eklenir:
-  // storageKey?: string;  // S3/GCS object key
-  // checksum?: string;    // MD5/SHA256 bütünlük kontrolü
+  fileSize: number;
+  mimeType?: string;
+  duration?: number;
+  url: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
-// ─── LineStatus ───────────────────────────────────────────────
+// ─── LineStatus ──────────────────────────────────────────────
 export type LineStatus =
-  | 'pending'      // Henüz kaydedilmedi
-  | 'recorded'     // Sanatçı kaydetti, QC bekliyor
-  | 'approved'     // QC onayladı
-  | 'rejected'     // QC reddetti, tekrar gerekiyor
-  | 'retake';      // Yönetmen retake istedi
+  | 'pending'
+  | 'recorded'
+  | 'approved'
+  | 'rejected'
+  | 'retake';
 
-// ─── RecordingVersion ────────────────────────────────────────
-/**
- * Bir replik satırı için tek bir kayıt versiyonu.
- * Sanatçı her yeni kayıt yüklediğinde yeni bir versiyon oluşur.
- * Önceki versiyonlar korunur — retake geçmişi burada tutulur.
- *
- * Gerçek sistemde: ayrı `recording_versions` tablosu.
- */
+// ─── RecordingVersion ─────────────────────────────────────────
 export interface RecordingVersion {
-  version: number;          // 1, 2, 3, ... (artan)
-  file: AudioFile;          // Bu versiyonun dosyası
-  uploadedAt: string;       // ISO string
-  uploadedBy: string;       // artistId
-  // QC kararı bu versiyon için
+  version: number;
+  file: AudioFile;
+  uploadedAt: string;
+  uploadedBy: string;
   qcStatus?: 'pending' | 'approved' | 'rejected';
   qcNote?: string;
-  reviewedBy?: string;      // QC kullanıcısı adı
-  reviewedAt?: string;      // ISO string
+  reviewedBy?: string;
+  reviewedAt?: string;
 }
 
-// ─── RecordingLine ────────────────────────────────────────────
-/**
- * Bir görev içindeki tek bir replik/satır.
- * Her biri bağımsız bir kayıt işi temsil eder.
- *
- * Versiyonlama: sanatçı yeni kayıt yüklediğinde `versions[]`'a eklenir,
- * `recordedFile` her zaman en son versiyonu gösterir.
- */
+// ─── RecordingLine ───────────────────────────────────────────
 export interface RecordingLine {
   id: string;
   taskId: string;
-  lineNumber: number;         // Sıralı replik numarası (1-indexed)
-  originalText?: string;      // Orijinal diyalog metni
-  translatedText?: string;    // Türkçe çeviri
-  timecode?: string;          // "00:01:23:15" — video referans noktası
+  lineNumber: number;
+  originalText?: string;
+  translatedText?: string;
+  timecode?: string;
   status: LineStatus;
-
-  // Ses dosyaları
-  sourceFile?: AudioFile;     // Orijinal ses (PM/Dev yükledi)
-  recordedFile?: AudioFile;   // Sanatçının EN SON kaydı (versions[]'ın son elemanı)
-
-  // Versiyon geçmişi — retake takibi
-  versions?: RecordingVersion[];  // Tüm kayıt versiyonları, sıralı
-
-  // Notlar
-  directorNote?: string;      // Yönetmen / PM notu
-  artistNote?: string;        // Sanatçı notu (yükleme sırasında yazılır)
-
-  // QC — en son QC kararı
-  qcNote?: string;            // QC inceleme notu (sanatçıya gösterilebilir)
-  reviewedBy?: string;        // QC kullanıcısının adı
-  reviewedAt?: string;        // QC kararının zamanı (ISO string)
-
-  // Retake tracking
-  retakeCount: number;        // Kaç kez tekrar istenildi (otomatik artar)
-
-  // Meta
+  sourceFile?: AudioFile;
+  recordedFile?: AudioFile;
+  versions?: RecordingVersion[];
+  directorNote?: string;
+  artistNote?: string;
+  qcNote?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  retakeCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,13 +87,13 @@ export interface Task {
   projectId: string;
   characterId: string;
   characterName: string;
-  assignedTo?: string;          // userId (voice artist)
+  assignedTo?: string;
   assignedArtistName?: string;
-  lineCount: number;            // lines.length ile sync tutulur
+  lineCount: number;
   status: TaskStatus;
-  sourceFiles: AudioFile[];     // Task-level kaynak dosyalar
-  recordedFiles: AudioFile[];   // Task-level kayıt dosyaları
-  lines: RecordingLine[];       // Bireysel replik görevleri
+  sourceFiles: AudioFile[];
+  recordedFiles: AudioFile[];
+  lines: RecordingLine[];
   notes?: string;
   dueDate?: string;
   createdAt: string;
@@ -172,7 +139,7 @@ export interface Project {
   coverColor?: string;
 }
 
-// ─── Auth ─────────────────────────────────────────────────────
+// ─── Auth ────────────────────────────────────────────────────
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -202,24 +169,19 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'projects:read', 'projects:write', 'projects:delete',
     'tasks:read', 'tasks:write', 'tasks:upload',
     'qc:read', 'qc:approve',
-    'users:manage',
-    'settings:read', 'settings:write',
+    'users:manage', 'settings:read', 'settings:write',
   ],
   project_manager: [
     'projects:read', 'projects:write',
     'tasks:read', 'tasks:write',
-    'qc:read',
-    'settings:read',
+    'qc:read', 'settings:read',
   ],
   voice_artist: [
-    'tasks:read', 'tasks:upload',
-    'settings:read',
+    'tasks:read', 'tasks:upload', 'settings:read',
   ],
   qc_reviewer: [
-    'projects:read',
-    'tasks:read',
-    'qc:read', 'qc:approve',
-    'settings:read',
+    'projects:read', 'tasks:read',
+    'qc:read', 'qc:approve', 'settings:read',
   ],
 };
 
@@ -275,14 +237,13 @@ export type UploadFileStatus =
   | 'skipped';
 
 export interface UploadedFileEntry {
-  /** Gerçek File nesnesi — mimeType, size, name, arrayBuffer() erişimi */
   file: File;
   uid: string;
   baseName: string;
   fileName: string;
   fileSize: number;
-  mimeType: string;           // file.type — gerçek sistemde zorunlu
-  previewUrl: string;         // Object URL — revokeObjectURL ile temizlenmeli
+  mimeType: string;
+  previewUrl: string;
   estimatedDuration?: number;
   status: UploadFileStatus;
   progress: number;
@@ -311,7 +272,7 @@ export interface DashboardStats {
   uploadedTasks: number;
 }
 
-// ─── Filtering & Search ───────────────────────────────────────
+// ─── Filtering & Search ──────────────────────────────────────
 export interface TaskFilter {
   search: string;
   status: TaskStatus | 'all';
@@ -345,7 +306,7 @@ export interface SearchMatch {
   query: string;
 }
 
-// ─── QC ───────────────────────────────────────────────────────
+// ─── QC ──────────────────────────────────────────────────────
 export type QCStatus = 'pending' | 'approved' | 'revision_requested';
 
 export interface QCReview {
@@ -364,7 +325,6 @@ export interface QCReview {
   artistName: string;
   sourceFile?: AudioFile;
   recordedFile?: AudioFile;
-  // Versiyon bilgisi — QC hangi versiyonu inceliyor
   currentVersion?: number;
   totalVersions?: number;
   qcStatus: QCStatus;
@@ -375,7 +335,7 @@ export interface QCReview {
   submittedAt: string;
 }
 
-// ─── Settings ─────────────────────────────────────────────────
+// ─── Settings ────────────────────────────────────────────────
 export interface AppSettings {
   general: {
     defaultLanguage: 'tr' | 'en';
@@ -402,7 +362,7 @@ export interface AppSettings {
   };
 }
 
-// ─── Progress ─────────────────────────────────────────────────
+// ─── Progress ────────────────────────────────────────────────
 export interface CastProgress {
   characterId: string;
   characterName: string;

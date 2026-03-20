@@ -1,9 +1,9 @@
 // ============================================================
 // DASHBOARD PAGE
 // Rol bazlı dashboard:
-//   Admin / PM     → ManagerDashboard
-//   Sanatçı        → Görevlerim özeti (projects'ten useMemo)
-//   QC             → Bekleyen kayıtlar (line bazlı)
+//   Admin / PM    → ManagerDashboard
+//   Sanatçı       → Görevlerim özeti (projects'ten useMemo)
+//   QC            → Bekleyen kayıtlar (line bazlı)
 // ============================================================
 
 import { useMemo } from 'react';
@@ -25,7 +25,6 @@ import {
 } from '../utils/formatters';
 import type { MyTask } from '../types';
 
-// ─── Artist görevlerini projects'ten türet ──────────────────
 function deriveArtistTasks(
   projects: ReturnType<typeof useProjects>['projects'],
   artistId: string
@@ -37,13 +36,13 @@ function deriveArtistTasks(
       const character = project.characters.find((c) => c.id === task.characterId);
       result.push({
         ...task,
-        projectTitle:         project.title,
-        projectColor:         project.coverColor ?? '#6B7280',
-        clientName:           project.clientName,
+        projectTitle:        project.title,
+        projectColor:        project.coverColor ?? '#6B7280',
+        clientName:          project.clientName,
         characterDescription: character?.description,
-        voiceNotes:           character?.voiceNotes,
-        characterGender:      character?.gender,
-        characterPriority:    character?.priority,
+        voiceNotes:          character?.voiceNotes,
+        characterGender:     character?.gender,
+        characterPriority:   character?.priority,
       });
     }
   }
@@ -61,8 +60,6 @@ export function Dashboard() {
   const { projects, isLoading } = useProjects();
   const navigate             = useNavigate();
 
-  // ── Sanatçı görevleri — projects state'inden türetilir.
-  // projects her güncellendiğinde (QC, upload, atama) otomatik güncellenir.
   const myTasks = useMemo<MyTask[]>(
     () =>
       currentUser?.role === 'voice_artist'
@@ -71,7 +68,6 @@ export function Dashboard() {
     [currentUser, projects]
   );
 
-  // ── QC için line bazlı pending sayımı
   const qcStats = useMemo(() => {
     if (currentUser?.role !== 'qc_reviewer') return null;
     let pending = 0, approved = 0, rejected = 0, total = 0;
@@ -82,7 +78,7 @@ export function Dashboard() {
           total++;
           if (l.status === 'approved') approved++;
           else if (l.status === 'rejected' || l.status === 'retake') rejected++;
-          else pending++; // 'recorded'
+          else pending++;
         }
       }
     }
@@ -91,12 +87,12 @@ export function Dashboard() {
 
   if (isLoading || !currentUser) return <FullPageSpinner />;
 
-  // ── Admin / PM View ────────────────────────────────────────
+  // ── Admin / PM View ──────────────────────────────────────
   if (currentUser.role === 'admin' || currentUser.role === 'project_manager') {
     return <ManagerDashboard currentUser={currentUser} projects={projects} />;
   }
 
-  // ── Voice Artist View ──────────────────────────────────────
+  // ── Voice Artist View ────────────────────────────────────
   if (currentUser.role === 'voice_artist') {
     const pending    = myTasks.filter((t) => t.status === 'pending').length;
     const inProgress = myTasks.filter((t) => t.status === 'in_progress').length;
@@ -124,7 +120,6 @@ export function Dashboard() {
         />
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* Stat kartları */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Toplam Görev"  value={myTasks.length} icon={<Mic2 className="w-5 h-5" />} />
             <StatCard label="Bekliyor"      value={pending}        icon={<Clock className="w-5 h-5" />} />
@@ -132,14 +127,13 @@ export function Dashboard() {
             <StatCard label="Tamamlanan"    value={done}           icon={<CheckCircle2 className="w-5 h-5" />} />
           </div>
 
-          {/* QC Reddedilen uyarı */}
           {rejectedTasks.length > 0 && (
             <div
               className="flex items-center gap-3 px-4 py-3 rounded-xl"
               style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)' }}
             >
               <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: 'var(--text-primary)' }} />
-              <div className="flex-1 min-w-0">
+              <div className="flex-1">
                 <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                   {rejectedTasks.length} görev reddedildi
                 </p>
@@ -147,228 +141,121 @@ export function Dashboard() {
                   QC notlarını oku ve kaydı tekrar yükle.
                 </p>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => navigate('/my-tasks')}>
+              <Button size="sm" variant="outline" onClick={() => navigate('/my-tasks')}>
                 Göster
               </Button>
             </div>
           )}
 
-          {/* Devam eden uyarı */}
-          {inProgress > 0 && rejectedTasks.length === 0 && (
-            <div
-              className="flex items-center gap-3 px-4 py-3 rounded-xl"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              <Mic2 className="w-4 h-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                <span className="font-semibold">{inProgress} görev</span> devam ediyor —{' '}
-                <button
-                  className="underline hover:no-underline transition-all"
-                  onClick={() => navigate('/my-tasks')}
-                >
-                  görev listesine git
-                </button>
+          {myTasks.length > 0 ? (
+            <Card>
+              <div className="p-4 border-b" style={{ borderColor: 'var(--border-base)' }}>
+                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  Son Görevler
+                </h3>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border-base)' }}>
+                {myTasks.slice(0, 8).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors"
+                    onClick={() => navigate('/my-tasks')}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ background: task.projectColor }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                        {task.characterName}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                        {task.projectTitle}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge color={TASK_STATUS_COLORS[task.status]}>
+                        {TASK_STATUS_LABELS[task.status]}
+                      </Badge>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {formatRelativeDate(task.updatedAt)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {myTasks.length > 8 && (
+                <div className="p-3 text-center">
+                  <Button size="sm" variant="ghost" onClick={() => navigate('/my-tasks')}>
+                    Tümünü Gör ({myTasks.length})
+                  </Button>
+                </div>
+              )}
+            </Card>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Mic2 className="w-10 h-10 mb-3" style={{ color: 'var(--text-muted)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                Henüz görev yok
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                Bir proje yöneticisi sana görev atadığında burada görünür.
               </p>
             </div>
           )}
-
-          {/* Görev listesi */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                Atanmış Görevler
-              </h2>
-              <button
-                onClick={() => navigate('/my-tasks')}
-                className="text-xs transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-              >
-                Tümünü gör →
-              </button>
-            </div>
-
-            {myTasks.length === 0 ? (
-              <div
-                className="flex flex-col items-center justify-center py-12 rounded-xl"
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-              >
-                <Mic2 className="w-8 h-8 mb-2" style={{ color: 'var(--border-strong)' }} />
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                  Henüz görev atanmamış.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {myTasks.slice(0, 8).map((task) => {
-                  const lines          = task.lines ?? [];
-                  const completedLines = lines.filter((l) => l.status === 'approved').length;
-                  const totalLines     = lines.length || task.lineCount;
-                  const pct            = totalLines > 0
-                    ? Math.round((completedLines / totalLines) * 100)
-                    : 0;
-
-                  return (
-                    <Card key={task.id} hoverable onClick={() => navigate('/my-tasks')}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                            {task.characterName}
-                          </p>
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            {task.projectTitle}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {totalLines > 0 && (
-                            <div className="hidden sm:flex flex-col items-end">
-                              <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--text-secondary)' }}>
-                                {completedLines}/{totalLines}
-                              </span>
-                              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                replik
-                              </span>
-                            </div>
-                          )}
-                          <Badge
-                            label={TASK_STATUS_LABELS[task.status]}
-                            className={TASK_STATUS_COLORS[task.status]}
-                          />
-                        </div>
-                      </div>
-
-                      {totalLines > 0 && (
-                        <div className="mt-3">
-                          <div
-                            className="h-1 rounded-full overflow-hidden"
-                            style={{ background: 'var(--bg-elevated)' }}
-                          >
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${pct}%`,
-                                background: 'var(--progress-fill)',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-
-                {myTasks.length > 8 && (
-                  <button
-                    className="w-full py-3 text-sm transition-colors text-center rounded-xl"
-                    style={{
-                      color: 'var(--text-muted)',
-                      border: '1px solid var(--border)',
-                    }}
-                    onClick={() => navigate('/my-tasks')}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--bg-hover)';
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = 'var(--text-muted)';
-                    }}
-                  >
-                    +{myTasks.length - 8} görevi daha gör
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     );
   }
 
-  // ── QC Reviewer View ───────────────────────────────────────
-  const qs = qcStats ?? { pending: 0, approved: 0, rejected: 0, total: 0 };
-
-  // Proje bazlı: recorded satırı olan task'lar
-  const pendingTasks = projects.flatMap((p) =>
-    (p.tasks ?? [])
-      .filter((t) => (t.lines ?? []).some((l) => l.status === 'recorded'))
-      .map((t) => ({ ...t, projectTitle: p.title, projectId: p.id }))
-  );
-
-  return (
-    <div className="flex flex-col h-full">
-      <TopBar
-        title="QC İnceleme"
-        subtitle={`${qs.pending} satır inceleme bekliyor`}
-      />
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="İnceleme Bekleyen" value={qs.pending}  icon={<Upload className="w-5 h-5" />} />
-          <StatCard label="Onaylandı"         value={qs.approved} icon={<CheckCircle2 className="w-5 h-5" />} />
-          <StatCard label="Reddedildi"        value={qs.rejected} icon={<AlertTriangle className="w-5 h-5" />} />
-          <StatCard label="Toplam Satır"      value={qs.total}    icon={<Mic2 className="w-5 h-5" />} />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
-              İnceleme Bekleyen Görevler
-            </h2>
-            <Button size="sm" variant="ghost" onClick={() => navigate('/qc')}>
-              QC sayfasına git →
+  // ── QC Reviewer View ─────────────────────────────────────
+  if (currentUser.role === 'qc_reviewer' && qcStats) {
+    return (
+      <div className="flex flex-col h-full">
+        <TopBar
+          title="QC İnceleme"
+          subtitle="Bekleyen ses kayıtlarını incele"
+          actions={
+            <Button
+              size="sm"
+              onClick={() => navigate('/qc-review')}
+            >
+              İncelemeye Başla
             </Button>
+          }
+        />
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Toplam"      value={qcStats.total}    icon={<Mic2 className="w-5 h-5" />} />
+            <StatCard label="Bekliyor"    value={qcStats.pending}  icon={<Clock className="w-5 h-5" />} />
+            <StatCard label="Onaylandı"   value={qcStats.approved} icon={<CheckCircle2 className="w-5 h-5" />} />
+            <StatCard label="Reddedildi"  value={qcStats.rejected} icon={<AlertTriangle className="w-5 h-5" />} />
           </div>
 
-          {pendingTasks.length === 0 ? (
+          {qcStats.pending > 0 && (
             <div
-              className="flex flex-col items-center justify-center py-10 rounded-xl"
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-base)' }}
+              onClick={() => navigate('/qc-review')}
             >
-              <CheckCircle2 className="w-8 h-8 mb-2" style={{ color: 'var(--border-strong)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                İncelenecek kayıt yok. 🎉
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pendingTasks.map((task) => {
-                const recordedCount = (task.lines ?? []).filter(
-                  (l) => l.status === 'recorded'
-                ).length;
-                return (
-                  <Card
-                    key={task.id}
-                    hoverable
-                    onClick={() => navigate(`/projects/${task.projectId}`)}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                          {task.characterName}
-                        </p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                          {task.projectTitle} · {task.assignedArtistName ?? 'Atanmamış'}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
-                          {formatRelativeDate(task.updatedAt)}
-                        </span>
-                        <Badge
-                          label={`${recordedCount} satır`}
-                          className={TASK_STATUS_COLORS['uploaded']}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+              <Clock className="w-4 h-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+              <div className="flex-1">
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {qcStats.pending} kayıt inceleme bekliyor
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  QC inceleme sayfasına git
+                </p>
+              </div>
+              <Button size="sm" onClick={() => navigate('/qc-review')}>
+                İncele
+              </Button>
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <FullPageSpinner />;
 }

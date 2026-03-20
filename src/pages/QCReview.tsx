@@ -1,8 +1,5 @@
 // ============================================================
 // QC REVIEW PAGE
-// Tüm veri doğrudan useProjects()'ten türetilir.
-// Kararlar applyQCDecision() ile merkezi state'e yazılır →
-// MyTasks, ProjectDetail, Dashboard otomatik güncellenir.
 // ============================================================
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -16,37 +13,27 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import type { Project, RecordingLine, QCStatus } from '../types';
 
-// ── Türetilmiş QC satırı tipi ────────────────────────────────
-
 interface QCRow {
-  // Kimlik
-  id: string;          // `qc-${lineId}`
+  id: string;
   projectId: string;
   projectTitle: string;
   taskId: string;
   characterName: string;
   lineId: string;
   lineNumber: number;
-  // İçerik
   originalText?: string;
   translatedText?: string;
   timecode?: string;
-  // Sanatçı
   artistId: string;
   artistName: string;
-  // Dosyalar
   sourceFile?: RecordingLine['sourceFile'];
   recordedFile?: RecordingLine['recordedFile'];
-  // QC durumu (line.status'tan türetilir)
   qcStatus: QCStatus;
   qcNote?: string;
   reviewedByName?: string;
   submittedAt: string;
-  // Navigasyon için
   retakeCount: number;
 }
-
-// ── Türetme fonksiyonu ────────────────────────────────────────
 
 function buildQCRows(projects: Project[]): QCRow[] {
   const rows: QCRow[] = [];
@@ -54,7 +41,6 @@ function buildQCRows(projects: Project[]): QCRow[] {
   for (const project of projects) {
     for (const task of project.tasks ?? []) {
       for (const line of task.lines ?? []) {
-        // Sadece kaydedilmiş veya karara bağlanmış satırlar
         if (line.status === 'pending') continue;
 
         const qcStatus: QCStatus =
@@ -95,8 +81,6 @@ function buildQCRows(projects: Project[]): QCRow[] {
   });
 }
 
-// ── Yardımcılar ───────────────────────────────────────────────
-
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('tr-TR', {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -114,12 +98,10 @@ function fmtBytes(b: number) {
 }
 
 const STATUS_CONFIG: Record<QCStatus, { label: string }> = {
-  pending:            { label: 'QC Bekliyor' },
-  approved:           { label: 'Onaylandı' },
-  revision_requested: { label: 'Revize İstendi' },
+  pending:              { label: 'QC Bekliyor' },
+  approved:             { label: 'Onaylandı' },
+  revision_requested:   { label: 'Revize İstendi' },
 };
-
-// ── StatusBadge ───────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: QCStatus }) {
   return (
@@ -138,16 +120,14 @@ function StatusBadge({ status }: { status: QCStatus }) {
             status === 'approved'
               ? 'var(--text-primary)'
               : status === 'revision_requested'
-                ? 'var(--text-secondary)'
-                : 'var(--text-muted)',
+              ? 'var(--text-secondary)'
+              : 'var(--text-muted)',
         }}
       />
       {STATUS_CONFIG[status].label}
     </span>
   );
 }
-
-// ── ReviewModal ───────────────────────────────────────────────
 
 interface ReviewModalProps {
   row: QCRow;
@@ -160,755 +140,372 @@ interface ReviewModalProps {
 function ReviewModal({ row, onClose, onApprove, onRevision, isSubmitting }: ReviewModalProps) {
   const [note, setNote] = useState(row.qcNote ?? '');
   const [action, setAction] = useState<'approve' | 'revision' | null>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  function handleSubmit() {
-    if (!action) return;
-    if (action === 'revision' && !note.trim()) {
-      alert('Revize notu zorunludur.');
-      return;
-    }
-    if (action === 'approve') onApprove(note);
-    else onRevision(note);
-  }
-
-  function mockDownload(label: string) {
-    // Gerçek sistemde presigned URL ile indirilir
-    alert(`"${label}" indiriliyor… (mock)`);
-  }
+  const fileUrl = row.recordedFile?.url ?? row.sourceFile?.url;
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}
+        className="relative w-full max-w-2xl rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)' }}
       >
         {/* Header */}
-        <div
-          className="flex items-start justify-between p-6"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-base)' }}>
           <div>
-            <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
-              {row.projectTitle} · {row.characterName}
-            </div>
-            <h2 className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>
-              Satır #{row.lineNumber}
+            <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {row.characterName} · Satır #{row.lineNumber}
             </h2>
-            {row.timecode && (
-              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                TC: {row.timecode}
-              </div>
-            )}
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {row.projectTitle} · {row.artistName}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={row.qcStatus} />
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors vt-hover"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1 rounded transition-opacity hover:opacity-70" style={{ color: 'var(--text-muted)' }}>
+            <X size={18} />
+          </button>
         </div>
 
-        <div className="p-6 space-y-5">
-          {/* Metin */}
+        <div className="p-5 space-y-4">
+          {/* Script */}
           {(row.originalText || row.translatedText) && (
-            <div
-              className="rounded-xl p-4 space-y-3"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
+            <div className="space-y-2">
               {row.originalText && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
-                    Orijinal
-                  </div>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                    {row.originalText}
-                  </p>
+                <div className="px-4 py-3 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Orijinal</p>
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{row.originalText}</p>
                 </div>
               )}
               {row.translatedText && (
-                <div
-                  style={{
-                    borderTop: row.originalText ? '1px solid var(--border)' : undefined,
-                    paddingTop: row.originalText ? 12 : 0,
-                  }}
-                >
-                  <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
-                    Türkçe
-                  </div>
-                  <p className="text-sm font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>
-                    {row.translatedText}
-                  </p>
+                <div className="px-4 py-3 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Çeviri</p>
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{row.translatedText}</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Dosyalar */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Orijinal */}
-            <div
-              className="rounded-xl p-4"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <FileAudio className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Orijinal Ses
-                </span>
+          {/* Audio player */}
+          {fileUrl && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                {row.recordedFile ? 'Kayıt' : 'Kaynak Ses'}
+              </p>
+              <audio ref={audioRef} controls src={fileUrl} className="w-full h-10" />
+              <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span>{row.recordedFile?.fileName ?? row.sourceFile?.fileName}</span>
+                {(row.recordedFile?.fileSize ?? row.sourceFile?.fileSize) && (
+                  <span>{fmtBytes(row.recordedFile?.fileSize ?? row.sourceFile?.fileSize ?? 0)}</span>
+                )}
               </div>
-              {row.sourceFile ? (
-                <div className="space-y-2">
-                  <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                    {row.sourceFile.fileName}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {fmtBytes(row.sourceFile.fileSize)}
-                  </div>
-                  <button
-                    onClick={() => mockDownload(row.sourceFile!.fileName)}
-                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors vt-hover w-full justify-center"
-                    style={{
-                      background: 'var(--bg-base)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    <Download className="w-3 h-3" />
-                    İndir
-                  </button>
-                </div>
-              ) : (
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Yüklenmemiş</div>
-              )}
             </div>
+          )}
 
-            {/* Kayıt alınan */}
-            <div
-              className="rounded-xl p-4"
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Mic2 className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Kayıt Alınan
-                </span>
-              </div>
-              {row.recordedFile ? (
-                <div className="space-y-2">
-                  <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                    {row.recordedFile.fileName}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {fmtBytes(row.recordedFile.fileSize)}
-                  </div>
-                  <button
-                    onClick={() => mockDownload(row.recordedFile!.fileName)}
-                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors w-full justify-center"
-                    style={{
-                      background: 'var(--text-primary)',
-                      border: '1px solid var(--text-primary)',
-                      color: 'var(--accent-text)',
-                    }}
-                  >
-                    <Download className="w-3 h-3" />
-                    İndir
-                  </button>
-                </div>
-              ) : (
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Henüz yüklenmedi</div>
-              )}
-            </div>
-          </div>
-
-          {/* Meta */}
-          <div className="flex flex-wrap gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <span>
-              Sanatçı:{' '}
-              <span style={{ color: 'var(--text-secondary)' }}>{row.artistName}</span>
-            </span>
-            <span>
-              Yüklenme:{' '}
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {fmtDate(row.submittedAt)} {fmtTime(row.submittedAt)}
-              </span>
-            </span>
-            {row.retakeCount > 0 && (
-              <span>
-                Retake:{' '}
-                <span style={{ color: 'var(--text-secondary)' }}>{row.retakeCount}×</span>
-              </span>
-            )}
-            {row.reviewedByName && (
-              <span>
-                İnceleyen:{' '}
-                <span style={{ color: 'var(--text-secondary)' }}>{row.reviewedByName}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Not */}
+          {/* Note */}
           <div>
-            <label
-              className="block text-xs font-medium mb-1.5"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              İnceleme Notu{' '}
-              {action === 'revision' && (
-                <span style={{ color: 'var(--text-muted)' }}>(zorunlu)</span>
-              )}
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              QC Notu (opsiyonel)
             </label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              placeholder="Yönetmen notu ekle…"
               rows={3}
-              placeholder="QC notunuzu buraya yazın…"
-              className="w-full rounded-xl text-sm resize-none px-3 py-2.5 outline-none transition-colors"
+              className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none"
               style={{
                 background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-base)',
                 color: 'var(--text-primary)',
               }}
             />
           </div>
 
-          {/* Aksiyon seçimi */}
-          <div className="flex gap-3">
+          {/* Actions */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setAction(action === 'approve' ? null : 'approve')}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{
-                background: action === 'approve' ? 'var(--text-primary)' : 'var(--bg-elevated)',
-                color: action === 'approve' ? 'var(--accent-text)' : 'var(--text-secondary)',
-                border: '1px solid var(--border)',
-              }}
+              onClick={() => { setAction('revision'); onRevision(note); }}
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-base)', color: 'var(--text-secondary)' }}
             >
-              <CheckCircle className="w-4 h-4" />
-              Onayla
-            </button>
-            <button
-              onClick={() => setAction(action === 'revision' ? null : 'revision')}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{
-                background: action === 'revision' ? 'var(--bg-elevated)' : 'var(--bg-elevated)',
-                color: action === 'revision' ? 'var(--text-primary)' : 'var(--text-muted)',
-                border: action === 'revision'
-                  ? '1px solid var(--text-primary)'
-                  : '1px solid var(--border)',
-              }}
-            >
-              <XCircle className="w-4 h-4" />
+              <XCircle size={16} />
               Revize İste
             </button>
+            <button
+              onClick={() => { setAction('approve'); onApprove(note); }}
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ background: 'var(--text-primary)', color: 'var(--bg-base)' }}
+            >
+              <CheckCircle size={16} />
+              Onayla
+            </button>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div
-          className="flex items-center justify-end gap-3 px-6 py-4"
-          style={{ borderTop: '1px solid var(--border)' }}
-        >
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm transition-colors vt-hover"
-            style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-          >
-            İptal
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!action || isSubmitting}
-            className="px-5 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
-            style={{
-              background: 'var(--text-primary)',
-              color: 'var(--accent-text)',
-            }}
-          >
-            {isSubmitting ? 'Kaydediliyor…' : action === 'approve' ? 'Onayla' : action === 'revision' ? 'Revize İste' : 'Aksiyon Seç'}
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Tablo Satırı ─────────────────────────────────────────────
+export function QCReview() {
+  const { projects, applyQCDecision, isLoading } = useProjects();
+  const { currentUser } = useAuth();
+  const { notify } = useNotifications();
 
-function ReviewRow({ row, onClick }: { row: QCRow; onClick: () => void }) {
-  return (
-    <tr
-      onClick={onClick}
-      className="cursor-pointer transition-colors vt-hover-row"
-      style={{ borderBottom: '1px solid var(--border)' }}
-    >
-      {/* Proje / Karakter */}
-      <td className="py-3.5 pl-4 pr-3">
-        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-          {row.characterName}
-        </div>
-        <div className="text-xs truncate max-w-[180px]" style={{ color: 'var(--text-muted)' }}>
-          {row.projectTitle}
-        </div>
-      </td>
-
-      {/* Satır */}
-      <td className="py-3.5 px-3 hidden md:table-cell">
-        <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-          #{row.lineNumber}
-        </span>
-        {row.timecode && (
-          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            {row.timecode}
-          </div>
-        )}
-      </td>
-
-      {/* Sanatçı */}
-      <td className="py-3.5 px-3 hidden lg:table-cell">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
-            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-          >
-            {row.artistName.charAt(0).toUpperCase()}
-          </div>
-          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {row.artistName}
-          </span>
-        </div>
-      </td>
-
-      {/* Durum */}
-      <td className="py-3.5 px-3">
-        <StatusBadge status={row.qcStatus} />
-      </td>
-
-      {/* Dosyalar */}
-      <td className="py-3.5 px-3 hidden sm:table-cell">
-        <div className="flex gap-2">
-          <span
-            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded"
-            style={{
-              background: row.sourceFile ? 'var(--bg-active)' : 'var(--bg-elevated)',
-              color: row.sourceFile ? 'var(--text-secondary)' : 'var(--text-muted)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <FileAudio className="w-3 h-3" />
-            {row.sourceFile ? 'Var' : 'Yok'}
-          </span>
-          <span
-            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded"
-            style={{
-              background: row.recordedFile ? 'var(--bg-active)' : 'var(--bg-elevated)',
-              color: row.recordedFile ? 'var(--text-secondary)' : 'var(--text-muted)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <Mic2 className="w-3 h-3" />
-            {row.recordedFile ? 'Var' : 'Yok'}
-          </span>
-        </div>
-      </td>
-
-      {/* Tarih */}
-      <td className="py-3.5 pl-3 pr-4 hidden xl:table-cell">
-        <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          {fmtDate(row.submittedAt)}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// ── Ana Sayfa ─────────────────────────────────────────────────
-
-type FilterTab = QCStatus | 'all';
-
-export function QCReviewPage() {
-  const { projects, applyQCDecision } = useProjects();
-  const { currentUser }               = useAuth();
-  const { notify }                    = useNotifications();
-
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
-  const [projectFilter, setProjectFilter] = useState('all');
-  const [artistFilter, setArtistFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<QCStatus | 'all'>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<QCRow | null>(null);
+  const [reviewRow, setReviewRow] = useState<QCRow | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Tüm QC satırlarını projects'ten türet — projects değişince otomatik güncellenir
   const allRows = useMemo(() => buildQCRows(projects), [projects]);
 
-  // Aktif tab'a göre filtrele — selectedRow'u güncelle
-  useEffect(() => {
-    if (!selectedRow) return;
-    const updated = allRows.find((r) => r.id === selectedRow.id);
-    if (updated) setSelectedRow(updated);
-  }, [allRows]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Filtre dropdown verileri
-  const uniqueProjects = useMemo(() => {
+  const projectOptions = useMemo(() => {
     const seen = new Set<string>();
-    return allRows.filter((r) => {
-      if (seen.has(r.projectId)) return false;
-      seen.add(r.projectId);
-      return true;
-    }).map((r) => ({ id: r.projectId, title: r.projectTitle }));
+    const opts: { id: string; title: string }[] = [];
+    for (const r of allRows) {
+      if (!seen.has(r.projectId)) {
+        seen.add(r.projectId);
+        opts.push({ id: r.projectId, title: r.projectTitle });
+      }
+    }
+    return opts;
   }, [allRows]);
 
-  const uniqueArtists = useMemo(() => {
-    const seen = new Set<string>();
-    return allRows.filter((r) => {
-      if (seen.has(r.artistId)) return false;
-      seen.add(r.artistId);
-      return true;
-    }).map((r) => ({ id: r.artistId, name: r.artistName }));
-  }, [allRows]);
-
-  // Uygulanan filtreler
   const filtered = useMemo(() => {
-    let list = allRows;
-    if (activeTab !== 'all') list = list.filter((r) => r.qcStatus === activeTab);
-    if (projectFilter !== 'all') list = list.filter((r) => r.projectId === projectFilter);
-    if (artistFilter !== 'all') list = list.filter((r) => r.artistId === artistFilter);
+    let rows = allRows;
+    if (statusFilter !== 'all') rows = rows.filter((r) => r.qcStatus === statusFilter);
+    if (projectFilter !== 'all') rows = rows.filter((r) => r.projectId === projectFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(
+      rows = rows.filter(
         (r) =>
-          r.projectTitle.toLowerCase().includes(q) ||
           r.characterName.toLowerCase().includes(q) ||
           r.artistName.toLowerCase().includes(q) ||
-          String(r.lineNumber).includes(q) ||
-          (r.originalText?.toLowerCase() ?? '').includes(q) ||
-          (r.translatedText?.toLowerCase() ?? '').includes(q)
+          r.originalText?.toLowerCase().includes(q) ||
+          r.translatedText?.toLowerCase().includes(q)
       );
     }
-    return list;
-  }, [allRows, activeTab, projectFilter, artistFilter, search]);
+    return rows;
+  }, [allRows, statusFilter, projectFilter, search]);
 
-  // Sayaçlar
-  const counts: Record<FilterTab, number> = useMemo(() => ({
-    all:                allRows.length,
-    pending:            allRows.filter((r) => r.qcStatus === 'pending').length,
-    approved:           allRows.filter((r) => r.qcStatus === 'approved').length,
-    revision_requested: allRows.filter((r) => r.qcStatus === 'revision_requested').length,
+  const counts = useMemo(() => ({
+    pending:   allRows.filter((r) => r.qcStatus === 'pending').length,
+    approved:  allRows.filter((r) => r.qcStatus === 'approved').length,
+    revision:  allRows.filter((r) => r.qcStatus === 'revision_requested').length,
   }), [allRows]);
 
-  const TABS: { key: FilterTab; label: string }[] = [
-    { key: 'all',                label: 'Tümü' },
-    { key: 'pending',            label: 'QC Bekliyor' },
-    { key: 'approved',           label: 'Onaylananlar' },
-    { key: 'revision_requested', label: 'Revize İstenenler' },
-  ];
-
-  // ── QC Aksiyonları (merkezi state'e yazar) ──────────────────
-
   const handleApprove = useCallback(async (note: string) => {
-    if (!selectedRow) return;
+    if (!reviewRow || !currentUser) return;
     setIsSubmitting(true);
     try {
       await applyQCDecision(
-        selectedRow.projectId,
-        selectedRow.taskId,
-        selectedRow.lineId,
+        reviewRow.projectId,
+        reviewRow.taskId,
+        reviewRow.lineId,
         'approved',
         note,
-        currentUser?.name ?? 'QC'
+        currentUser.name
       );
-      // Sanatçıya bildirim
       notify({
         type: 'qc_approved',
-        title: 'Kaydınız Onaylandı',
-        body: `${selectedRow.characterName} — Satır #${selectedRow.lineNumber} onaylandı.${note ? ` Not: ${note}` : ''}`,
+        title: 'Kayıt Onaylandı',
+        body: `${reviewRow.characterName} – Satır #${reviewRow.lineNumber} onaylandı.`,
         targetRole: 'voice_artist',
-        meta: {
-          projectId: selectedRow.projectId,
-          projectName: selectedRow.projectTitle,
-          characterName: selectedRow.characterName,
-          lineNumber: selectedRow.lineNumber,
-        },
+        meta: { projectId: reviewRow.projectId },
       });
+      setReviewRow(null);
     } finally {
       setIsSubmitting(false);
-      setSelectedRow(null);
     }
-  }, [selectedRow, applyQCDecision, currentUser?.name, notify]);
+  }, [reviewRow, currentUser, applyQCDecision, notify]);
 
   const handleRevision = useCallback(async (note: string) => {
-    if (!selectedRow) return;
+    if (!reviewRow || !currentUser) return;
     setIsSubmitting(true);
     try {
       await applyQCDecision(
-        selectedRow.projectId,
-        selectedRow.taskId,
-        selectedRow.lineId,
-        'rejected',
+        reviewRow.projectId,
+        reviewRow.taskId,
+        reviewRow.lineId,
+        'revision_requested',
         note,
-        currentUser?.name ?? 'QC'
+        currentUser.name
       );
-      // Sanatçıya revize bildirimi
       notify({
         type: 'qc_rejected',
         title: 'Revize İstendi',
-        body: `${selectedRow.characterName} — Satır #${selectedRow.lineNumber} için revize istendi.${note ? ` Not: ${note}` : ''}`,
+        body: `${reviewRow.characterName} – Satır #${reviewRow.lineNumber} için revize istendi.`,
         targetRole: 'voice_artist',
-        meta: {
-          projectId: selectedRow.projectId,
-          projectName: selectedRow.projectTitle,
-          characterName: selectedRow.characterName,
-          lineNumber: selectedRow.lineNumber,
-        },
+        meta: { projectId: reviewRow.projectId },
       });
+      setReviewRow(null);
     } finally {
       setIsSubmitting(false);
-      setSelectedRow(null);
     }
-  }, [selectedRow, applyQCDecision, currentUser?.name, notify]);
-
-  const activeFiltersCount =
-    (projectFilter !== 'all' ? 1 : 0) + (artistFilter !== 'all' ? 1 : 0);
+  }, [reviewRow, currentUser, applyQCDecision, notify]);
 
   return (
     <div className="flex flex-col h-full">
       <TopBar
         title="QC İnceleme"
-        subtitle={`${counts.pending} kayıt bekliyor · ${counts.approved} onaylandı`}
-      />
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Özet kartlar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Toplam',         value: counts.all },
-            { label: 'QC Bekliyor',    value: counts.pending },
-            { label: 'Onaylandı',      value: counts.approved },
-            { label: 'Revize İstendi', value: counts.revision_requested },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-xl p-4"
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-            >
-              <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                {s.value}
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Toolbar + Tablo */}
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-        >
-          {/* Tab bar */}
-          <div
-            className="flex items-center gap-1 px-4 pt-3 pb-0"
-            style={{ borderBottom: '1px solid var(--border)' }}
-          >
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium rounded-t-lg transition-colors relative"
-                style={{
-                  color: activeTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
-                  background: activeTab === tab.key ? 'var(--bg-elevated)' : 'transparent',
-                  borderBottom: activeTab === tab.key
-                    ? '2px solid var(--text-primary)'
-                    : '2px solid transparent',
-                }}
-              >
-                {tab.label}
-                {counts[tab.key] > 0 && (
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[10px]"
-                    style={{
-                      background: activeTab === tab.key ? 'var(--text-primary)' : 'var(--bg-active)',
-                      color: activeTab === tab.key ? 'var(--accent-text)' : 'var(--text-secondary)',
-                    }}
-                  >
-                    {counts[tab.key]}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Arama + Filtre satırı */}
-          <div className="flex items-center gap-3 px-4 py-3">
-            <div className="flex-1 relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
-                style={{ color: 'var(--text-muted)' }}
-              />
+        subtitle={`${counts.pending} bekliyor · ${counts.approved} onaylandı · ${counts.revision} revize`}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
               <input
-                type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Proje, karakter, sanatçı veya satır ara…"
-                className="w-full pl-9 pr-4 py-2 rounded-lg text-sm outline-none transition-colors"
+                placeholder="Ara…"
+                className="pl-8 pr-3 py-1.5 text-sm rounded-xl outline-none w-44"
                 style={{
                   background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border)',
+                  border: '1px solid var(--border-base)',
                   color: 'var(--text-primary)',
                 }}
               />
             </div>
             <button
               onClick={() => setShowFilters((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors vt-hover relative"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl transition-colors"
               style={{
-                background: showFilters || activeFiltersCount > 0
-                  ? 'var(--bg-active)' : 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
+                background: showFilters ? 'var(--bg-elevated)' : 'transparent',
+                border: '1px solid var(--border-base)',
                 color: 'var(--text-secondary)',
               }}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              Filtrele
-              {activeFiltersCount > 0 && (
-                <span
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] flex items-center justify-center"
-                  style={{ background: 'var(--text-primary)', color: 'var(--accent-text)' }}
-                >
-                  {activeFiltersCount}
-                </span>
-              )}
+              <SlidersHorizontal size={13} />
+              Filtre
             </button>
           </div>
+        }
+      />
 
-          {/* Filtre paneli */}
-          {showFilters && (
-            <div
-              className="flex flex-wrap items-center gap-3 px-4 py-3"
-              style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'QC Bekliyor', value: counts.pending, status: 'pending' as QCStatus },
+            { label: 'Onaylandı',   value: counts.approved, status: 'approved' as QCStatus },
+            { label: 'Revize',      value: counts.revision, status: 'revision_requested' as QCStatus },
+          ].map((s) => (
+            <button
+              key={s.status}
+              onClick={() => setStatusFilter(statusFilter === s.status ? 'all' : s.status)}
+              className="flex flex-col items-start px-4 py-3 rounded-xl text-left transition-colors"
+              style={{
+                background: statusFilter === s.status ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                border: `1px solid ${statusFilter === s.status ? 'var(--border-strong)' : 'var(--border-base)'}`,
+              }}
             >
-              <div className="flex items-center gap-2">
-                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Proje</label>
-                <select
-                  value={projectFilter}
-                  onChange={(e) => setProjectFilter(e.target.value)}
-                  className="text-xs px-2 py-1.5 rounded-lg outline-none"
-                  style={{
-                    background: 'var(--bg-base)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="all">Tümü</option>
-                  {uniqueProjects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Sanatçı</label>
-                <select
-                  value={artistFilter}
-                  onChange={(e) => setArtistFilter(e.target.value)}
-                  className="text-xs px-2 py-1.5 rounded-lg outline-none"
-                  style={{
-                    background: 'var(--bg-base)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="all">Tümü</option>
-                  {uniqueArtists.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-              {activeFiltersCount > 0 && (
-                <button
-                  onClick={() => { setProjectFilter('all'); setArtistFilter('all'); }}
-                  className="text-xs px-2.5 py-1.5 rounded-lg transition-colors vt-hover"
-                  style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                >
-                  Sıfırla
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Tablo */}
-          {filtered.length === 0 ? (
-            <div className="py-16 text-center">
-              <AlertCircle className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {search || activeFiltersCount > 0
-                  ? 'Arama kriterlerine uyan kayıt bulunamadı.'
-                  : activeTab === 'pending'
-                    ? 'QC bekleyen kayıt yok.'
-                    : 'Bu kategoride kayıt yok.'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {[
-                      { label: 'Proje / Karakter', cls: 'pl-4 pr-3' },
-                      { label: 'Satır',             cls: 'px-3 hidden md:table-cell' },
-                      { label: 'Sanatçı',           cls: 'px-3 hidden lg:table-cell' },
-                      { label: 'Durum',             cls: 'px-3' },
-                      { label: 'Dosyalar',          cls: 'px-3 hidden sm:table-cell' },
-                      { label: 'Tarih',             cls: 'pl-3 pr-4 hidden xl:table-cell' },
-                    ].map((h) => (
-                      <th
-                        key={h.label}
-                        className={`py-2.5 text-left text-[11px] font-medium uppercase tracking-wider ${h.cls}`}
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {h.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <ReviewRow key={r.id} row={r} onClick={() => setSelectedRow(r)} />
-                  ))}
-                </tbody>
-              </table>
-              <div
-                className="px-4 py-2.5 text-xs"
-                style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}
-              >
-                {filtered.length} kayıt gösteriliyor
-              </div>
-            </div>
-          )}
+              <span className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{s.value}</span>
+              <span className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+            </button>
+          ))}
         </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="text-sm rounded-xl px-3 py-1.5 outline-none"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-base)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <option value="all">Tüm Projeler</option>
+              {projectOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+            {(['all', 'pending', 'approved', 'revision_requested'] as (QCStatus | 'all')[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className="px-3 py-1.5 text-xs rounded-lg transition-colors"
+                style={{
+                  background: statusFilter === s ? 'var(--text-primary)' : 'var(--bg-elevated)',
+                  color: statusFilter === s ? 'var(--bg-base)' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-base)',
+                }}
+              >
+                {s === 'all' ? 'Tümü' : s === 'pending' ? 'Bekliyor' : s === 'approved' ? 'Onaylandı' : 'Revize'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Table */}
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <AlertCircle size={32} style={{ color: 'var(--text-muted)' }} />
+            <p className="mt-3 text-sm" style={{ color: 'var(--text-primary)' }}>Kayıt bulunamadı</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Filtrelerinizi değiştirin veya sanatçı yüklemesi bekleyin.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((row) => (
+              <div
+                key={row.id}
+                onClick={() => setReviewRow(row)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)' }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {row.characterName}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      #{row.lineNumber}
+                    </span>
+                    {row.retakeCount > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
+                        {row.retakeCount}. tekrar
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                      {row.projectTitle}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {row.artistName}
+                    </span>
+                  </div>
+                  {row.originalText && (
+                    <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+                      {row.originalText}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  {(row.recordedFile || row.sourceFile) && (
+                    <FileAudio size={14} style={{ color: 'var(--text-muted)' }} />
+                  )}
+                  <StatusBadge status={row.qcStatus} />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {fmtDate(row.submittedAt)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* İnceleme Modal */}
-      {selectedRow && (
+      {reviewRow && (
         <ReviewModal
-          row={selectedRow}
-          onClose={() => setSelectedRow(null)}
+          row={reviewRow}
+          onClose={() => setReviewRow(null)}
           onApprove={handleApprove}
           onRevision={handleRevision}
           isSubmitting={isSubmitting}

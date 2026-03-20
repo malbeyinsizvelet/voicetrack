@@ -2,7 +2,6 @@
 // FORMATTERS — Tarih, dosya boyutu, durum etiketleri
 // Renk paleti: yalnızca siyah/beyaz/gri tonları
 // ============================================================
-
 import type { TaskStatus, ProjectStatus, UserRole } from '../types';
 
 export function formatDate(iso: string): string {
@@ -36,32 +35,32 @@ export function formatDuration(seconds?: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// ─── Status Labels ───────────────────────────────────────────
+// ─── Status Labels ────────────────────────────────────────────
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
-  pending: 'Bekliyor',
-  in_progress: 'Kayıt Yapılıyor',
-  uploaded: 'Yüklendi',
-  qc_approved: 'QC Onaylandı',
-  qc_rejected: 'QC Reddedildi',
-  mixed: 'Mix Tamamlandı',
-  final: 'Final',
+  pending:      'Bekliyor',
+  in_progress:  'Kayıt Yapılıyor',
+  uploaded:     'Yüklendi',
+  qc_approved:  'QC Onaylandı',
+  qc_rejected:  'QC Reddedildi',
+  mixed:        'Mix Tamamlandı',
+  final:        'Final',
 };
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  active: 'Aktif',
+  active:    'Aktif',
   completed: 'Tamamlandı',
-  on_hold: 'Beklemede',
-  archived: 'Arşivlendi',
+  on_hold:   'Beklemede',
+  archived:  'Arşivlendi',
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Admin',
+  admin:           'Admin',
   project_manager: 'Proje Yöneticisi',
-  voice_artist: 'Seslendirme Sanatçısı',
-  qc_reviewer: 'QC Uzmanı',
+  voice_artist:    'Seslendirme Sanatçısı',
+  qc_reviewer:     'QC Uzmanı',
 };
 
-// ─── Status Colors (Monochrome) ──────────────────────────────
+// ─── Status Colors (Monochrome) ────────────────────────────────
 export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
   pending:     'bg-neutral-100 text-neutral-500 border border-neutral-200',
   in_progress: 'bg-neutral-800 text-white border border-neutral-700',

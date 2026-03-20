@@ -1,10 +1,3 @@
-// ============================================================
-// STORAGE ABSTRACTION
-// localStorage işlemlerini type-safe ve hata yönetimli yürütür.
-// Gerçek sistemde: cookie, IndexedDB veya server-side session
-// ile değiştirilir — tüketiciler etkilenmez.
-// ============================================================
-
 import { createLogger } from './logger';
 
 const log = createLogger('Storage');
@@ -16,8 +9,6 @@ export interface StorageDriver {
   clear(): void;
   has(key: string): boolean;
 }
-
-// ─── LocalStorage Driver ────────────────────────────────────
 
 function createLocalStorageDriver(): StorageDriver {
   return {
@@ -31,38 +22,21 @@ function createLocalStorageDriver(): StorageDriver {
         return null;
       }
     },
-
     set<T>(key: string, value: T): void {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (err) {
-        log.error(`set(${key}) yazma hatası`, err);
-      }
+      try { localStorage.setItem(key, JSON.stringify(value)); }
+      catch (err) { log.error(`set(${key}) yazma hatası`, err); }
     },
-
     remove(key: string): void {
-      try {
-        localStorage.removeItem(key);
-      } catch (err) {
-        log.warn(`remove(${key}) hatası`, err);
-      }
+      try { localStorage.removeItem(key); }
+      catch (err) { log.warn(`remove(${key}) hatası`, err); }
     },
-
     clear(): void {
-      try {
-        localStorage.clear();
-      } catch (err) {
-        log.error('clear() hatası', err);
-      }
+      try { localStorage.clear(); }
+      catch (err) { log.error('clear() hatası', err); }
     },
-
-    has(key: string): boolean {
-      return localStorage.getItem(key) !== null;
-    },
+    has(key: string): boolean { return localStorage.getItem(key) !== null; },
   };
 }
-
-// ─── Memory Driver (SSR / test ortamları) ───────────────────
 
 function createMemoryDriver(): StorageDriver {
   const store = new Map<string, string>();
@@ -79,8 +53,6 @@ function createMemoryDriver(): StorageDriver {
   };
 }
 
-// ─── Driver seçimi ──────────────────────────────────────────
-
 function resolveDriver(): StorageDriver {
   try {
     localStorage.setItem('__vt_test__', '1');
@@ -93,9 +65,6 @@ function resolveDriver(): StorageDriver {
 }
 
 export const storage = resolveDriver();
-
-// ─── Typed namespace yardımcıları ───────────────────────────
-// Uygulamaya özel key prefix'leri burada tanımlanır.
 
 export const SESSION_KEY = 'vt_session';
 export const PREFERENCES_KEY = 'vt_preferences';

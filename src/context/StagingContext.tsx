@@ -1,14 +1,6 @@
 // ============================================================
-// STAGING CONTEXT — Phase 9
-//
-// Değişiklikler:
-//   - localStorage persist: staged + error item'lar korunur
-//   - App açılışında queue geri yüklenir (File nesnesi hariç)
-//   - committed item'lar persist edilmez
-//   - batchInfo state eklendi (Batch 2/4 progress)
-//   - userId bazlı storage key
+// STAGING CONTEXT
 // ============================================================
-
 import React, {
   createContext,
   useContext,
@@ -28,9 +20,6 @@ import {
 } from '../services/stagingService';
 import type { AudioFile } from '../types';
 
-// ─── Persist ─────────────────────────────────────────────────
-
-/** File nesnesi serialize edilemez — persist'te sadece metadata tutulur */
 type PersistedItem = Omit<StagedItem, 'file'> & { fileRestored?: false };
 
 function persistKey(userId: string): string {
@@ -42,7 +31,6 @@ function loadPersistedQueue(userId: string): PersistedItem[] {
     const raw = localStorage.getItem(persistKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as PersistedItem[];
-    // Sadece staged ve error item'ları geri yükle
     return parsed.filter((i) => i.status === 'staged' || i.status === 'error');
   } catch {
     return [];
@@ -56,7 +44,7 @@ function saveQueue(userId: string, queue: StagedItem[]): void {
       .map(({ file: _file, ...rest }) => rest as PersistedItem);
     localStorage.setItem(persistKey(userId), JSON.stringify(toSave));
   } catch {
-    // localStorage dolu olabilir — sessizce geç
+    // localStorage dolu olabilir
   }
 }
 
@@ -64,19 +52,8 @@ function clearPersisted(userId: string): void {
   localStorage.removeItem(persistKey(userId));
 }
 
-// ─── Callback Tipleri ─────────────────────────────────────────
-
-export type OnSourceCommitted = (
-  item: StagedSourceItem,
-  audioFile: AudioFile
-) => void;
-
-export type OnRecordedCommitted = (
-  item: StagedRecordedItem,
-  audioFile: AudioFile
-) => void;
-
-// ─── Context Interface ────────────────────────────────────────
+export type OnSourceCommitted = (item: StagedSourceItem, audioFile: AudioFile) => void;
+export type OnRecordedCommitted = (item: StagedRecordedItem, audioFile: AudioFile) => void;
 
 interface StagingContextValue {
   queue: StagedItem[];
@@ -84,44 +61,22 @@ interface StagingContextValue {
   isCommitting: boolean;
   commitProgress: { done: number; total: number };
   batchProgress: { current: number; total: number } | null;
-
   stageSource: (
     file: File,
-    meta: {
-      projectId: string;
-      projectTitle: string;
-      characterId: string;
-      taskId: string;
-      uploadedBy: string;
-    },
+    meta: { projectId: string; projectTitle: string; characterId: string; taskId: string; uploadedBy: string },
     onCommitted?: OnSourceCommitted
   ) => string;
-
   stageRecorded: (
     file: File,
-    meta: {
-      projectId: string;
-      projectTitle: string;
-      characterId: string;
-      taskId: string;
-      lineId: string;
-      versionNumber: number;
-      uploadedBy: string;
-      artistNote?: string;
-    },
+    meta: { projectId: string; projectTitle: string; characterId: string; taskId: string; lineId: string; versionNumber: number; uploadedBy: string; artistNote?: string },
     onCommitted?: OnRecordedCommitted
   ) => string;
-
   unstage: (uid: string) => void;
   commitAll: () => Promise<CommitResult>;
   clearErrors: () => void;
   clearCommitted: () => void;
-
-  /** Belirli bir lineId için staged item var mı */
   getStagedUidForLine: (lineId: string) => string | null;
 }
-
-// ─── Context ──────────────────────────────────────────────────
 
 const StagingContext = createContext<StagingContextValue | null>(null);
 
@@ -131,8 +86,6 @@ export function useStaging(): StagingContextValue {
   return ctx;
 }
 
-// ─── Provider ─────────────────────────────────────────────────
-
 export function StagingProvider({
   children,
   userId,
@@ -140,12 +93,8 @@ export function StagingProvider({
   children: React.ReactNode;
   userId: string;
 }) {
-  // Persist'ten başlangıç queue'yu yükle
-  // Not: File nesnesi olmayan item'lar "file-less" olarak gelir —
-  //      bunlar sadece görsel olarak gösterilir, commit edilemez.
   const [queue, setQueue] = useState<StagedItem[]>(() => {
     const persisted = loadPersistedQueue(userId);
-    // File nesnesi olmayan item'ları "error" olarak işaretle
     return persisted.map((item) => ({
       ...item,
       file: null as unknown as File,
@@ -157,17 +106,12 @@ export function StagingProvider({
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitProgress, setCommitProgress] = useState({ done: 0, total: 0 });
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const callbacksRef = useRef<Map<string, OnSourceCommitted | OnRecordedCommitted>>(new Map());
 
-  const callbacksRef = useRef<
-    Map<string, OnSourceCommitted | OnRecordedCommitted>
-  >(new Map());
-
-  // Queue değişince persist et
   useEffect(() => {
     saveQueue(userId, queue);
   }, [queue, userId]);
 
-  // Kullanıcı değişince eski queue'yu temizle, yeni yükle
   useEffect(() => {
     const persisted = loadPersistedQueue(userId);
     setQueue(
@@ -181,17 +125,10 @@ export function StagingProvider({
     callbacksRef.current.clear();
   }, [userId]);
 
-  // ── Source ekle ──────────────────────────────────────────────
   const stageSource = useCallback(
     (
       file: File,
-      meta: {
-        projectId: string;
-        projectTitle: string;
-        characterId: string;
-        taskId: string;
-        uploadedBy: string;
-      },
+      meta: { projectId: string; projectTitle: string; characterId: string; taskId: string; uploadedBy: string },
       onCommitted?: OnSourceCommitted
     ): string => {
       const uid = genStagingId();
@@ -213,20 +150,10 @@ export function StagingProvider({
     []
   );
 
-  // ── Recorded ekle ────────────────────────────────────────────
   const stageRecorded = useCallback(
     (
       file: File,
-      meta: {
-        projectId: string;
-        projectTitle: string;
-        characterId: string;
-        taskId: string;
-        lineId: string;
-        versionNumber: number;
-        uploadedBy: string;
-        artistNote?: string;
-      },
+      meta: { projectId: string; projectTitle: string; characterId: string; taskId: string; lineId: string; versionNumber: number; uploadedBy: string; artistNote?: string },
       onCommitted?: OnRecordedCommitted
     ): string => {
       const uid = genStagingId();
@@ -248,21 +175,15 @@ export function StagingProvider({
     []
   );
 
-  // ── Queue'dan çıkar ──────────────────────────────────────────
   const unstage = useCallback((uid: string) => {
     setQueue((prev) => prev.filter((i) => i.uid !== uid));
     callbacksRef.current.delete(uid);
   }, []);
 
-  // ── Commit All — Chunked ─────────────────────────────────────
   const commitAll = useCallback(async (): Promise<CommitResult> => {
-    // Sadece gerçek File nesnesi olan staged item'ları commit et
     const staged = queue.filter(
-      (i) =>
-        (i.status === 'staged' || i.status === 'error') &&
-        i.file instanceof File
+      (i) => (i.status === 'staged' || i.status === 'error') && i.file instanceof File
     );
-
     if (staged.length === 0) {
       return { success: [], failed: [], totalCommits: 0, batches: [] };
     }
@@ -271,12 +192,9 @@ export function StagingProvider({
     setCommitProgress({ done: 0, total: staged.length });
     setBatchProgress(null);
 
-    // committing olarak işaretle
     setQueue((prev) =>
       prev.map((i) =>
-        staged.some((s) => s.uid === i.uid)
-          ? { ...i, status: 'committing' as const }
-          : i
+        staged.some((s) => s.uid === i.uid) ? { ...i, status: 'committing' as const } : i
       )
     );
 
@@ -287,9 +205,7 @@ export function StagingProvider({
       onItemDone: (committedItem, audioFile) => {
         setQueue((prev) =>
           prev.map((i) =>
-            i.uid === committedItem.uid
-              ? { ...committedItem, status: 'committed' as const }
-              : i
+            i.uid === committedItem.uid ? { ...committedItem, status: 'committed' as const } : i
           )
         );
         const cb = callbacksRef.current.get(committedItem.uid);
@@ -307,14 +223,11 @@ export function StagingProvider({
       },
     });
 
-    // Hatalıları işaretle
     if (result.failed.length > 0) {
       setQueue((prev) =>
         prev.map((i) => {
           const failed = result.failed.find((f) => f.item.uid === i.uid);
-          return failed
-            ? { ...i, status: 'error' as const, errorMessage: failed.error }
-            : i;
+          return failed ? { ...i, status: 'error' as const, errorMessage: failed.error } : i;
         })
       );
     }
@@ -322,7 +235,6 @@ export function StagingProvider({
     setIsCommitting(false);
     setCommitProgress({ done: 0, total: 0 });
 
-    // Başarı durumunda persist temizle
     if (result.failed.length === 0 && result.success.length > 0) {
       clearPersisted(userId);
     }
@@ -330,7 +242,6 @@ export function StagingProvider({
     return result;
   }, [queue, userId]);
 
-  // ── Temizlik ─────────────────────────────────────────────────
   const clearErrors = useCallback(() => {
     setQueue((prev) => prev.filter((i) => i.status !== 'error'));
   }, []);
@@ -339,7 +250,6 @@ export function StagingProvider({
     setQueue((prev) => prev.filter((i) => i.status !== 'committed'));
   }, []);
 
-  // ── lineId → staged uid ──────────────────────────────────────
   const getStagedUidForLine = useCallback(
     (lineId: string): string | null => {
       const found = queue.find(
@@ -372,9 +282,5 @@ export function StagingProvider({
     getStagedUidForLine,
   };
 
-  return (
-    <StagingContext.Provider value={value}>
-      {children}
-    </StagingContext.Provider>
-  );
+  return <StagingContext.Provider value={value}>{children}</StagingContext.Provider>;
 }

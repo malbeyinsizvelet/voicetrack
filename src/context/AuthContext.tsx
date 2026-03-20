@@ -1,36 +1,20 @@
 // ============================================================
-// AUTH CONTEXT — Phase 13
-// Login / Logout / Session yönetimi.
-// authService üzerindeki tüm auth işlemleri buradan geçer.
-// Gerçek sistemde token refresh, interceptor vb. buraya eklenir.
+// AUTH CONTEXT — Supabase + Mock Fallback
 // ============================================================
-
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { LoginCredentials, User } from '../types';
 import { authService } from '../services/authService';
-
-// ─── Context Shape ────────────────────────────────────────────
+import { isSupabaseEnabled } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextValue {
-  /** Giriş yapmış kullanıcı. Null ise oturum yok. */
   currentUser: User | null;
-  /** İlk session kontrolü devam ediyor mu? */
   isLoading: boolean;
-  /** Kullanıcı giriş yapmış mı? */
   isAuthenticated: boolean;
-  /** Oturum açma — hata fırlatır, yakalamak çağıran bileşenin sorumluluğu */
   login: (credentials: LoginCredentials) => Promise<void>;
-  /** Oturumu sonlandır */
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
-
-// ─── Context + Hook ───────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -40,18 +24,124 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-// ─── Provider ─────────────────────────────────────────────────
+// Maksimum loading süresi
+const MAX_LOADING_MS = 6000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading]     = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const resolvedRef = useRef(false);
 
-  // Uygulama açıldığında storage'daki session'ı senkron kontrol et
+  // Bir kez çözümlendikten sonra isLoading=false yap
+  const resolve = useCallback((user: User | null) => {
+    if (resolvedRef.current) {
+      // Zaten çözümlendiyse sadece user'ı güncelle (rol değişikliği vs.)
+      setCurrentUser(user);
+      return;
+    }
+    resolvedRef.current = true;
+    setCurrentUser(user);
+    setIsLoading(false);
+  }, []);
+
+  // ─── Supabase modu ────────────────────────────────────────
   useEffect(() => {
+    if (!isSupabaseEnabled()) return;
+
+    let cancelled = false;
+
+    // Güvenlik timeout — ne olursa olsun 6sn'de loading kapanır
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[AuthContext] Safety timeout triggered');
+        resolve(null);
+      }
+    }, MAX_LOADING_MS);
+
+    // Supabase auth state listener
+    // Bu hem INITIAL_SESSION hem sonraki değişiklikleri yakalar
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (cancelled) return;
+
+        console.debug('[AuthContext] auth event:', event, 'uid:', session?.user?.id);
+
+        if (!session?.user) {
+          clearTimeout(safetyTimer);
+          resolve(null);
+          return;
+        }
+
+        // Profili çek
+        try {
+          const user = await authService.getCurrentUserAsync();
+          if (!cancelled) {
+            clearTimeout(safetyTimer);
+            resolve(user);
+          }
+        } catch (err) {
+          console.error('[AuthContext] Profile fetch error:', err);
+          if (!cancelled) {
+            clearTimeout(safetyTimer);
+            resolve(null);
+          }
+        }
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Mock modu ────────────────────────────────────────────
+  useEffect(() => {
+    if (isSupabaseEnabled()) return;
+
+    const init = async () => {
+      try {
+        const user = await authService.getCurrentUserAsync();
+        resolve(user);
+      } catch {
+        resolve(null);
+      }
+    };
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Login ────────────────────────────────────────────────
+  // Supabase modunda: signInWithPassword → onAuthStateChange tetikler → user set edilir
+  // Mock modunda: doğrudan user döner
+  const login = useCallback(async (credentials: LoginCredentials) => {
+    if (isSupabaseEnabled()) {
+      // Supabase login yaptık; onAuthStateChange listener otomatik user'ı set eder.
+      // Ama login sayfasından yönlendirme için user'ı hemen set etmemiz lazım.
+      const user = await authService.login(credentials);
+      setCurrentUser(user);
+    } else {
+      const user = await authService.login(credentials);
+      setCurrentUser(user);
+    }
+  }, []);
+
+  // ─── Logout ───────────────────────────────────────────────
+  const logout = useCallback(async () => {
+    await authService.logout();
+    resolvedRef.current = false; // sonraki login için sıfırla
+    setCurrentUser(null);
+    // Supabase modunda onAuthStateChange null döner zaten
+  }, []);
+
+  // ─── Refresh (rol değişikliği sonrası manuel yenile) ─────
+  const refreshUser = useCallback(async () => {
     try {
-      // getSession artık sync — storage abstraction kullanıyor
-      const session = authService.getSession();
-      setCurrentUser(session?.user ?? null);
+      setIsLoading(true);
+      const user = await authService.getCurrentUserAsync();
+      setCurrentUser(user);
     } catch {
       setCurrentUser(null);
     } finally {
@@ -59,23 +149,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    const user = await authService.login(credentials);
-    setCurrentUser(user);
-  }, []);
-
-  const logout = useCallback(async () => {
-    await authService.logout();
-    setCurrentUser(null);
-  }, []);
-
-  const value: AuthContextValue = {
-    currentUser,
-    isLoading,
-    isAuthenticated: currentUser !== null,
-    login,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        isLoading,
+        isAuthenticated: currentUser !== null,
+        login,
+        logout,
+        refreshUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }

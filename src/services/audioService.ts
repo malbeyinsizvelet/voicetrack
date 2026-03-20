@@ -1,45 +1,13 @@
-// ============================================================
-// AUDIO SERVICE
-// Ses dosyası yükleme/indirme işlemleri.
-// Gerçek sistemde AWS S3 / GCS / Azure Blob Storage
-// entegrasyonu bu dosyaya yapılır.
-// ============================================================
-
 import type { AudioFile, AudioFileType } from '../types';
 
 export const audioService = {
-  /**
-   * Ses dosyası yükle.
-   * Gerçek sistemde: presigned URL al → dosyayı S3'e yükle → metadata kaydet.
-   */
-  async uploadFile(
-    taskId: string,
-    file: File,
-    type: AudioFileType,
-    uploadedBy: string
-  ): Promise<AudioFile> {
-    // Mock: dosyayı gerçekten yüklemez, sadece metadata döndürür
+  async uploadFile(taskId: string, file: File, type: AudioFileType, uploadedBy: string): Promise<AudioFile> {
     await new Promise((r) => setTimeout(r, 1000));
-    const mockFile: AudioFile = {
-      id: `af_${Date.now()}`,
-      taskId,
-      type,
-      fileName: file.name,
-      fileSize: file.size,
-      url: URL.createObjectURL(file), // Gerçekte: cloud URL
-      uploadedBy,
-      uploadedAt: new Date().toISOString(),
-    };
-    return mockFile;
+    return { id: `af_${Date.now()}`, taskId, type, fileName: file.name, fileSize: file.size, url: URL.createObjectURL(file), uploadedBy, uploadedAt: new Date().toISOString() };
   },
 
-  /**
-   * Dosya indir.
-   * Gerçek sistemde: presigned download URL al.
-   */
   async getDownloadUrl(fileId: string): Promise<string> {
     await new Promise((r) => setTimeout(r, 200));
-    // Mock: gerçek URL döndürür gibi yapar
     return `/mock/audio/${fileId}.wav`;
   },
 

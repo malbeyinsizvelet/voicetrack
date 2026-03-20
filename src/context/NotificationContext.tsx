@@ -1,10 +1,6 @@
 // ============================================================
-// NOTIFICATION CONTEXT — Phase 6
-// Kullanıcı bazlı localStorage key: vt_notif_{userId}
-// Farklı hesaplar birbirinin bildirimini görmez.
-// unread/read mantığı: sadece aktif kullanıcı bazlı.
+// NOTIFICATION CONTEXT — Supabase + localStorage fallback
 // ============================================================
-
 import {
   createContext,
   useContext,
@@ -14,8 +10,8 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-
-// ─── Tipler ──────────────────────────────────────────────────
+import { isSupabaseEnabled } from '../lib/supabase';
+import { notificationService } from '../services/notificationService';
 
 export type NotificationType =
   | 'qc_approved'
@@ -56,8 +52,6 @@ export interface NotifyPayload {
   meta?: AppNotification['meta'];
 }
 
-// ─── Context ─────────────────────────────────────────────────
-
 interface NotificationContextValue {
   notifications: AppNotification[];
   unreadCount: number;
@@ -72,87 +66,122 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 const MAX_NOTIFICATIONS = 50;
 
-function storageKey(userId: string) {
-  return `vt_notif_${userId}`;
-}
+// ─── localStorage yardımcıları (fallback) ────────────────────
+function storageKey(userId: string) { return `vt_notif_${userId}`; }
 
-function loadFromStorage(userId: string): AppNotification[] {
+function loadFromLocal(userId: string): AppNotification[] {
   if (!userId) return [];
   try {
     const raw = localStorage.getItem(storageKey(userId));
     return raw ? (JSON.parse(raw) as AppNotification[]) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-function saveToStorage(userId: string, items: AppNotification[]) {
+function saveToLocal(userId: string, items: AppNotification[]) {
   if (!userId) return;
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(items));
-  } catch {
-    // quota aşımı — sessizce geç
-  }
+  try { localStorage.setItem(storageKey(userId), JSON.stringify(items)); }
+  catch { /* quota */ }
 }
 
-// ─── Provider ────────────────────────────────────────────────
-
-interface Props {
-  children: ReactNode;
-  /** Aktif kullanıcı ID'si — AuthContext'ten gelir */
-  userId: string;
+function genLocalId(): string {
+  return `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
+
+interface Props { children: ReactNode; userId: string; }
 
 export function NotificationProvider({ children, userId }: Props) {
-  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
-    loadFromStorage(userId)
-  );
-
-  // Kullanıcı değişince doğru veriyi yükle + eski kullanıcı verisini temizle
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const prevUserId = useRef(userId);
+
+  // Kullanıcı değişince bildirimleri yeniden yükle
   useEffect(() => {
-    if (prevUserId.current !== userId) {
-      prevUserId.current = userId;
-      setNotifications(loadFromStorage(userId));
+    if (!userId) { setNotifications([]); return; }
+
+    if (isSupabaseEnabled()) {
+      // Supabase'den yükle
+      notificationService.loadForUser(userId).then((items) => {
+        setNotifications(items);
+      }).catch(() => {
+        // Fallback: localStorage
+        setNotifications(loadFromLocal(userId));
+      });
+    } else {
+      // localStorage fallback
+      if (prevUserId.current !== userId) {
+        setNotifications(loadFromLocal(userId));
+        prevUserId.current = userId;
+      } else {
+        setNotifications(loadFromLocal(userId));
+      }
     }
   }, [userId]);
 
-  // State değişince localStorage'a yaz (kullanıcıya özel key)
+  // localStorage'a otomatik kaydet (Supabase kapalıyken)
   useEffect(() => {
-    saveToStorage(userId, notifications);
-  }, [userId, notifications]);
+    if (!isSupabaseEnabled() && userId) {
+      saveToLocal(userId, notifications);
+    }
+  }, [notifications, userId]);
 
   const notify = useCallback((payload: NotifyPayload) => {
-    const notif: AppNotification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      type: payload.type,
-      title: payload.title,
-      body: payload.body,
-      targetRole: payload.targetRole,
-      meta: payload.meta,
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications((prev) => [notif, ...prev].slice(0, MAX_NOTIFICATIONS));
-  }, []);
+    if (isSupabaseEnabled() && userId) {
+      // Supabase'e ekle, sonra local state'i güncelle
+      notificationService.add(userId, payload).then((saved) => {
+        if (saved) {
+          setNotifications((prev) => [saved, ...prev].slice(0, MAX_NOTIFICATIONS));
+        }
+      }).catch(() => {
+        // Fallback: local optimistic
+        const item: AppNotification = {
+          id: genLocalId(),
+          ...payload,
+          read: false,
+          createdAt: new Date().toISOString(),
+        };
+        setNotifications((prev) => [item, ...prev].slice(0, MAX_NOTIFICATIONS));
+      });
+    } else {
+      // localStorage fallback
+      const item: AppNotification = {
+        id: genLocalId(),
+        ...payload,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+      setNotifications((prev) => [item, ...prev].slice(0, MAX_NOTIFICATIONS));
+    }
+  }, [userId]);
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    if (isSupabaseEnabled()) {
+      notificationService.markRead(id).catch(() => {});
+    }
   }, []);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    if (isSupabaseEnabled() && userId) {
+      notificationService.markAllRead(userId).catch(() => {});
+    }
+  }, [userId]);
 
   const remove = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    if (isSupabaseEnabled()) {
+      notificationService.remove(id).catch(() => {});
+    }
   }, []);
 
   const clearAll = useCallback(() => {
     setNotifications([]);
-    if (userId) localStorage.removeItem(storageKey(userId));
+    if (isSupabaseEnabled() && userId) {
+      notificationService.clearAll(userId).catch(() => {});
+    } else if (userId) {
+      localStorage.removeItem(storageKey(userId));
+    }
   }, [userId]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -166,10 +195,8 @@ export function NotificationProvider({ children, userId }: Props) {
   );
 }
 
-// ─── Hook ────────────────────────────────────────────────────
-
-export function useNotifications() {
+export function useNotifications(): NotificationContextValue {
   const ctx = useContext(NotificationContext);
-  if (!ctx) throw new Error('useNotifications must be used within NotificationProvider');
+  if (!ctx) throw new Error('useNotifications must be inside NotificationProvider');
   return ctx;
 }
