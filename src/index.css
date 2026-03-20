@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   DARK MODE via .dark class on <html>
+═══════════════════════════════════════════════════════════ */
+
+/* LIGHT (default) */
+:root {
+  --bg-base:        #F5F5F5;
+  --bg-surface:     #FAFAFA;
+  --bg-elevated:    #F0F0F0;
+  --bg-sidebar:     #EEEEEE;
+  --bg-hover:       rgba(15,16,15,0.05);
+  --bg-active:      rgba(15,16,15,0.09);
+  --bg-input:       #FAFAFA;
+  --border:         rgba(15,16,15,0.10);
+  --border-strong:  rgba(15,16,15,0.18);
+  --text-primary:   #0F100F;
+  --text-secondary: rgba(15,16,15,0.55);
+  --text-muted:     rgba(15,16,15,0.35);
+  --text-disabled:  rgba(15,16,15,0.25);
+  --accent:         #0F100F;
+  --accent-text:    #F5F5F5;
+  --progress-track: rgba(15,16,15,0.10);
+  --progress-fill:  #0F100F;
+  --scrollbar:      rgba(15,16,15,0.15);
+}
+
+/* DARK */
+.dark {
+  --bg-base:        #0F100F;
+  --bg-surface:     #161716;
+  --bg-elevated:    #1e1f1e;
+  --bg-sidebar:     #0F100F;
+  --bg-hover:       rgba(255,255,255,0.04);
+  --bg-active:      rgba(255,255,255,0.08);
+  --bg-input:       #1e1f1e;
+  --border:         rgba(255,255,255,0.07);
+  --border-strong:  rgba(255,255,255,0.14);
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(255,255,255,0.55);
+  --text-muted:     rgba(255,255,255,0.30);
+  --text-disabled:  rgba(255,255,255,0.18);
+  --accent:         #ffffff;
+  --accent-text:    #0F100F;
+  --progress-track: rgba(255,255,255,0.10);
+  --progress-fill:  #ffffff;
+  --scrollbar:      rgba(255,255,255,0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { transition: background-color 0.2s ease, color 0.2s ease; }
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ═══════════════════════════════════════════════════════════
+   KEYFRAMES
+═══════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInFast {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0) scale(1); max-height: 100px; }
+  to   { opacity: 0; transform: translateX(100%) scale(0.95); max-height: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATION UTILITIES
+═══════════════════════════════════════════════════════════ */
+.animate-fade-in       { animation: fadeIn      0.2s ease both; }
+.animate-fade-in-fast  { animation: fadeInFast  0.15s ease both; }
+.animate-slide-right   { animation: slideInRight 0.22s ease both; }
+.animate-slide-left    { animation: slideInLeft  0.22s ease both; }
+.animate-slide-up      { animation: slideInUp    0.2s ease both; }
+.animate-slide-down    { animation: slideInDown  0.18s ease both; }
+.animate-scale-in      { animation: scaleIn      0.18s ease both; }
+.animate-spin          { animation: spin 0.8s linear infinite; }
+.animate-pulse         { animation: pulse 1.5s ease-in-out infinite; }
+.animate-shimmer       { animation: shimmer 2s linear infinite; }
+.animate-toast-in      { animation: toastIn  0.3s cubic-bezier(0.32,0.72,0,1) both; }
+.animate-toast-out     { animation: toastOut 0.25s ease forwards; }
+
+/* ═══════════════════════════════════════════════════════════
+   SKELETON
+═══════════════════════════════════════════════════════════ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 25%,
+    var(--bg-hover)    50%,
+    var(--bg-elevated) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════════════ */
+.modal-backdrop { animation: fadeInFast 0.15s ease both; }
+.modal-content  { animation: scaleIn    0.18s cubic-bezier(0.32,0.72,0,1) both; }
+
+/* ═══════════════════════════════════════════════════════════
+   VT DESIGN TOKENS (CSS class helpers)
+═══════════════════════════════════════════════════════════ */
+
+/* Surfaces */
+.vt-bg-base     { background: var(--bg-base); }
+.vt-bg-surface  { background: var(--bg-surface); }
+.vt-bg-elevated { background: var(--bg-elevated); }
+.vt-bg-sidebar  { background: var(--bg-sidebar); }
+
+/* Borders */
+.vt-border      { border-color: var(--border); }
+.vt-border-strong { border-color: var(--border-strong); }
+
+/* Text */
+.vt-text-primary   { color: var(--text-primary); }
+.vt-text-secondary { color: var(--text-secondary); }
+.vt-text-muted     { color: var(--text-muted); }
+
+/* Accent (inverted button) */
+.vt-btn-accent {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.vt-btn-accent:hover {
+  opacity: 0.88;
+}
+
+/* Focus ring */
+.vt-focus:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* Interactive hover */
+.vt-hover:hover {
+  background: var(--bg-hover);
+}
+
+/* Table row hover */
+.vt-hover-row:hover td {
+  background: var(--bg-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════════════════════ */
+.interactive { cursor: pointer; user-select: none; }
+
+/* Thin divider */
+.vt-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* Progress fill */
+.vt-progress-track {
+  background: var(--progress-track);
+}
+.vt-progress-fill {
+  background: var(--progress-fill);
+}
